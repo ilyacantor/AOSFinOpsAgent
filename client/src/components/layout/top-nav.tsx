@@ -1,13 +1,20 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Cpu } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Cpu, LogOut } from "lucide-react";
 import autonomosLogo from "@assets/MAIN LOGO TEAL DARK BG PNG_1760814802183.png";
 
 interface TopNavProps {
   lastSync?: string;
   prodMode: boolean;
   onProdModeChange: (enabled: boolean) => void;
+}
+
+function handleLogout() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  window.location.href = "/login";
 }
 
 export function TopNav({ 
@@ -34,7 +41,7 @@ export function TopNav({
           />
         </Link>
 
-        {/* Right: Last Sync and Toggles */}
+        {/* Right: Last Sync, Toggles and Logout */}
         <div className="flex items-center gap-4">
           {/* Last Sync */}
           <div className="hidden lg:flex flex-col items-end">
@@ -63,6 +70,18 @@ export function TopNav({
               data-testid="toggle-prod-mode"
             />
           </div>
+
+          {/* Logout Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="text-gray-300 hover:text-white hover:bg-white/10"
+            data-testid="button-logout"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Logout</span>
+          </Button>
         </div>
       </div>
     </nav>

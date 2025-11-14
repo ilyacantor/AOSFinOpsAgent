@@ -47,7 +47,7 @@ export function securityHeadersMiddleware(config: SecurityHeadersConfig = {}) {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
 
   return (req: Request, res: Response, next: NextFunction) => {
-    if (finalConfig.enableHSTS && req.secure) {
+    if (finalConfig.enableHSTS) {
       let hstsValue = `max-age=${finalConfig.hstsMaxAge}`;
       if (finalConfig.hstsIncludeSubDomains) {
         hstsValue += '; includeSubDomains';
@@ -91,7 +91,9 @@ export function securityHeadersMiddleware(config: SecurityHeadersConfig = {}) {
 }
 
 export const developmentSecurityHeaders = securityHeadersMiddleware({
-  enableHSTS: false, // HSTS only works with HTTPS
+  enableHSTS: true, // Enable for testing (browsers ignore HSTS on HTTP anyway)
+  hstsMaxAge: 31536000,
+  hstsIncludeSubDomains: true,
   enableCSP: true,
   cspDirectives: {
     'default-src': ["'self'"],
