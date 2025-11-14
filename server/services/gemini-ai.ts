@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { AwsResource, Recommendation } from "@shared/schema";
-import { storage } from "../storage.js";
+import { storage, pineconeCircuitBreaker } from "../storage.js";
 import { pineconeService } from "./pinecone.js";
 
 export class GeminiAIService {
@@ -67,9 +67,12 @@ export class GeminiAIService {
         return this.contextCache.data;
       }
 
-      // Use Pinecone for semantic search of relevant historical context
+      // Use Pinecone for semantic search of relevant historical context with circuit breaker protection
       const query = "AWS resource optimization recommendations and execution history";
-      const relevantContext = await pineconeService.retrieveRelevantContext(query, 20);
+      const relevantContext = await pineconeCircuitBreaker.executeWithFallback(
+        () => pineconeService.retrieveRelevantContext(query, 20),
+        [] // Fallback to empty array if circuit is open
+      ) || [];
       
       // Separate recommendations from optimization history
       const pastRecommendations = relevantContext

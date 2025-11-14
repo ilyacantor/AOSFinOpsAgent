@@ -8,6 +8,26 @@ import {
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { pineconeService } from "./services/pinecone.js";
+import { CircuitBreaker } from "./lib/circuit-breaker.js";
+import bcrypt from "bcrypt";
+
+// Circuit breaker for Pinecone operations
+// Exported for use in other services (e.g., gemini-ai.ts)
+export const pineconeCircuitBreaker = new CircuitBreaker('Pinecone', {
+  failureThreshold: 5,
+  successThreshold: 2,
+  timeout: 30000 // 30 seconds
+});
+
+const SALT_ROUNDS = 10;
+
+export async function hashPassword(password: string): Promise<string> {
+  return await bcrypt.hash(password, SALT_ROUNDS);
+}
+
+export async function validatePassword(password: string, hashedPassword: string): Promise<boolean> {
+  return await bcrypt.compare(password, hashedPassword);
+}
 
 export interface IStorage {
   // User operations
@@ -96,9 +116,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
+    const hashedPassword = await hashPassword(insertUser.password);
     const [user] = await db
       .insert(users)
-      .values(insertUser)
+      .values({ ...insertUser, password: hashedPassword })
       .returning();
     return user;
   }
@@ -179,10 +200,13 @@ export class DatabaseStorage implements IStorage {
       .values(recommendation)
       .returning();
     
-    // Store in Pinecone for RAG (async, non-blocking)
-    pineconeService.storeRecommendation(created).catch(err => 
-      console.error('Failed to store recommendation in Pinecone:', err)
-    );
+    // Store in Pinecone for RAG (async, non-blocking) with circuit breaker protection
+    pineconeCircuitBreaker.executeWithFallback(
+      () => pineconeService.storeRecommendation(created)
+    ).catch(err => {
+      console.warn('[Storage] Pinecone storage degraded, skipping vector storage for recommendation:', created.id);
+      console.error('Pinecone error:', err.message || err);
+    });
     
     return created;
   }
@@ -225,10 +249,13 @@ export class DatabaseStorage implements IStorage {
       .values(history)
       .returning();
     
-    // Store in Pinecone for RAG (async, non-blocking)
-    pineconeService.storeOptimizationHistory(created).catch(err => 
-      console.error('Failed to store optimization history in Pinecone:', err)
-    );
+    // Store in Pinecone for RAG (async, non-blocking) with circuit breaker protection
+    pineconeCircuitBreaker.executeWithFallback(
+      () => pineconeService.storeOptimizationHistory(created)
+    ).catch(err => {
+      console.warn('[Storage] Pinecone storage degraded, skipping vector storage for optimization history:', created.id);
+      console.error('Pinecone error:', err.message || err);
+    });
     
     return created;
   }

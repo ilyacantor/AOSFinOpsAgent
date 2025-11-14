@@ -1,12 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage";
+import { storage, validatePassword, pineconeCircuitBreaker } from "./storage";
 import { awsService } from "./services/aws";
 import { sendOptimizationComplete } from "./services/slack";
-import { insertRecommendationSchema, insertApprovalRequestSchema } from "@shared/schema";
+import { insertRecommendationSchema, insertApprovalRequestSchema, insertUserSchema } from "@shared/schema";
+import { authenticateToken, requireRole, generateToken } from "./middleware/auth";
 // Import scheduler service to ensure it's instantiated and configuration is initialized
 import { schedulerService } from "./services/scheduler.js";
+import { db } from "./db";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -39,8 +41,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
   let prodModeTimeout: NodeJS.Timeout | null = null;
   let prodModeActivationTime: number | null = null;
 
+  // ===== Health Check Endpoints =====
+  // Basic health check - no authentication required
+  app.get("/api/health", (req, res) => {
+    const uptime = process.uptime();
+    res.status(200).json({
+      status: "healthy",
+      uptime: Math.floor(uptime),
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Detailed health check with component status
+  app.get("/api/health/detailed", async (req, res) => {
+    const healthChecks: {
+      database: { status: string; responseTime?: number; error?: string };
+      pinecone: { status: string; circuitState?: string; responseTime?: number };
+      platform: { status: string; responseTime?: number; error?: string };
+    } = {
+      database: { status: "unknown" },
+      pinecone: { status: "unknown" },
+      platform: { status: "unknown" }
+    };
+
+    let overallHealthy = true;
+
+    // Check database connection with timeout
+    try {
+      const dbStart = Date.now();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Database check timeout")), 5000)
+      );
+      
+      const checkPromise = db.execute('SELECT 1 as health_check');
+      
+      await Promise.race([checkPromise, timeoutPromise]);
+      
+      healthChecks.database = {
+        status: "healthy",
+        responseTime: Date.now() - dbStart
+      };
+    } catch (error) {
+      overallHealthy = false;
+      healthChecks.database = {
+        status: "unhealthy",
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+
+    // Check Pinecone circuit breaker state
+    try {
+      const pineconeStats = pineconeCircuitBreaker.getStats();
+      const circuitState = pineconeStats.state;
+      
+      // Circuit is healthy if CLOSED or HALF_OPEN
+      const isHealthy = circuitState === 'CLOSED' || circuitState === 'HALF_OPEN';
+      
+      healthChecks.pinecone = {
+        status: isHealthy ? "healthy" : "degraded",
+        circuitState: circuitState,
+        responseTime: 0 // Circuit breaker check is instant
+      };
+      
+      // If circuit is OPEN, mark as degraded but not unhealthy (graceful degradation)
+      if (circuitState === 'OPEN') {
+        // Don't fail overall health, just mark as degraded
+        console.warn('[Health Check] Pinecone circuit breaker is OPEN - service degraded');
+      }
+    } catch (error) {
+      healthChecks.pinecone = {
+        status: "unhealthy",
+        circuitState: "ERROR"
+      };
+      overallHealthy = false;
+    }
+
+    // Check Platform (AOS) connection - optional, don't fail if not configured
+    try {
+      const platformUrl = process.env.VITE_AOS_BASE_URL || process.env.VITE_PLATFORM_URL;
+      
+      if (platformUrl) {
+        const platformStart = Date.now();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Platform check timeout")), 5000)
+        );
+        
+        const checkPromise = fetch(`${platformUrl}/health`, { 
+          method: 'GET',
+          signal: AbortSignal.timeout(5000)
+        }).then(res => {
+          if (!res.ok) throw new Error(`Platform returned ${res.status}`);
+          return res;
+        });
+        
+        await Promise.race([checkPromise, timeoutPromise]);
+        
+        healthChecks.platform = {
+          status: "healthy",
+          responseTime: Date.now() - platformStart
+        };
+      } else {
+        healthChecks.platform = {
+          status: "not_configured",
+          responseTime: 0
+        };
+      }
+    } catch (error) {
+      // Platform is optional, don't fail overall health
+      healthChecks.platform = {
+        status: "unavailable",
+        error: error instanceof Error ? error.message : String(error)
+      };
+      console.warn('[Health Check] Platform (AOS) unavailable:', error instanceof Error ? error.message : error);
+    }
+
+    // Return appropriate status code
+    const statusCode = overallHealthy ? 200 : 503;
+    
+    res.status(statusCode).json({
+      status: overallHealthy ? "healthy" : "unhealthy",
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      components: healthChecks
+    });
+  });
+
   // Dashboard metrics endpoint
-  app.get("/api/dashboard/metrics", async (req, res) => {
+  app.get("/api/dashboard/metrics", authenticateToken, async (req, res) => {
     try {
       const metrics = await storage.getDashboardMetrics();
       res.json(metrics);
@@ -51,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cost trends endpoint
-  app.get("/api/dashboard/cost-trends", async (req, res) => {
+  app.get("/api/dashboard/cost-trends", authenticateToken, async (req, res) => {
     try {
       const trends = await storage.getMonthlyCostSummary();
       res.json(trends);
@@ -62,7 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Metrics summary endpoint for autopilot
-  app.get("/api/metrics/summary", async (req, res) => {
+  app.get("/api/metrics/summary", authenticateToken, async (req, res) => {
     try {
       const summary = await storage.getMetricsSummary();
       res.json(summary);
@@ -73,7 +200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Optimization mix endpoint (Autonomous vs HITL distribution)
-  app.get("/api/metrics/optimization-mix", async (req, res) => {
+  app.get("/api/metrics/optimization-mix", authenticateToken, async (req, res) => {
     try {
       const mix = await storage.getOptimizationMix();
       res.json(mix);
@@ -84,7 +211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Prod Mode toggle with auto-revert
-  app.post("/api/mode/prod", async (req, res) => {
+  app.post("/api/mode/prod", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { enabled } = req.body;
       const { configService } = await import('./services/config.js');
@@ -131,8 +258,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Authentication endpoints
+  app.post("/api/register", async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.parse(req.body);
+      
+      // Check if username already exists
+      const existingUser = await storage.getUserByUsername(validatedData.username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const user = await storage.createUser(validatedData);
+      
+      // Generate JWT token
+      const token = generateToken({
+        userId: user.id,
+        username: user.username,
+        role: user.role
+      });
+
+      res.json({ 
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error("Error registering user:", error);
+      res.status(400).json({ error: "Failed to register user" });
+    }
+  });
+
+  app.post("/api/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const isValid = await validatePassword(password, user.password);
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // Generate JWT token
+      const token = generateToken({
+        userId: user.id,
+        username: user.username,
+        role: user.role
+      });
+
+      res.json({ 
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error("Error logging in:", error);
+      res.status(500).json({ error: "Failed to login" });
+    }
+  });
+
+  app.post("/api/logout", authenticateToken, async (req, res) => {
+    // JWT logout is handled client-side by removing the token
+    // This endpoint exists for consistency and can be used for logging/analytics
+    res.json({ message: "Logged out successfully" });
+  });
+
+  app.get("/api/me", authenticateToken, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(req.user.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role
+      });
+    } catch (error) {
+      console.error("Error fetching current user:", error);
+      res.status(500).json({ error: "Failed to fetch user information" });
+    }
+  });
+
   // Recommendations endpoints
-  app.get("/api/recommendations", async (req, res) => {
+  app.get("/api/recommendations", authenticateToken, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       const recommendations = await storage.getRecommendations(status);
@@ -143,7 +371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/recommendations/:id", async (req, res) => {
+  app.get("/api/recommendations/:id", authenticateToken, async (req, res) => {
     try {
       const recommendation = await storage.getRecommendation(req.params.id);
       if (!recommendation) {
@@ -156,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/recommendations", async (req, res) => {
+  app.post("/api/recommendations", authenticateToken, async (req, res) => {
     try {
       const validatedData = insertRecommendationSchema.parse(req.body);
       const recommendation = await storage.createRecommendation(validatedData);
@@ -174,12 +402,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Approval request endpoints
-  app.post("/api/approval-requests", async (req, res) => {
+  // Approval request endpoints - Require admin or CFO role
+  app.post("/api/approval-requests", authenticateToken, requireRole('user'), async (req, res) => {
     try {
       console.log("Creating approval request with data:", req.body);
       const validatedData = insertApprovalRequestSchema.parse(req.body);
       console.log("Validated data:", validatedData);
+      
+      // For high-impact recommendations, require admin or CFO role
+      const recommendation = await storage.getRecommendation(validatedData.recommendationId);
+      if (recommendation && req.body.status === 'approved') {
+        const userRole = req.user?.role;
+        const highImpact = recommendation.projectedAnnualSavings > 100000000; // > $100k annual savings
+        
+        if (highImpact && userRole !== 'admin' && userRole !== 'cfo' && userRole !== 'Head of Cloud Platform') {
+          return res.status(403).json({ 
+            error: "High-impact recommendations require admin or CFO approval",
+            required: "admin or cfo",
+            current: userRole
+          });
+        }
+      }
       
       // Create approval request with date handling
       const approvalRequestData = {
@@ -197,12 +440,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateRecommendationStatus(validatedData.recommendationId, 'approved');
         
         // Get the recommendation details for the activity entry
-        const recommendation = await storage.getRecommendation(validatedData.recommendationId);
         if (recommendation) {
           console.log("Creating activity entry for approval");
           await storage.createOptimizationHistory({
             recommendationId: validatedData.recommendationId,
-            executedBy: validatedData.approvedBy || 'system',
+            executedBy: req.user?.userId || validatedData.approvedBy || 'system',
             executionDate: new Date(),
             beforeConfig: recommendation.currentConfig as any,
             afterConfig: recommendation.recommendedConfig as any,
@@ -225,7 +467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/approval-requests/:id", async (req, res) => {
+  app.patch("/api/approval-requests/:id", authenticateToken, requireRole('user'), async (req, res) => {
     try {
       const { status, approvedBy, comments } = req.body;
       const updateData: any = {
@@ -276,11 +518,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Bulk approve all pending recommendations
-  app.post("/api/approve-all-recommendations", async (req, res) => {
+  // Bulk approve all pending recommendations - Require admin or CFO role
+  app.post("/api/approve-all-recommendations", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       console.log("Starting bulk approval of all pending recommendations");
-      const { approvedBy = 'current-user', comments } = req.body;
+      const approvedBy = req.user?.userId || 'current-user';
+      const { comments } = req.body;
       
       // Get all pending recommendations
       const allRecommendations = await storage.getRecommendations();
@@ -396,7 +639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Manual analysis trigger
-  app.post("/api/analyze-resources", async (req, res) => {
+  app.post("/api/analyze-resources", authenticateToken, async (req, res) => {
     try {
       // Trigger analysis for specific resource type or all
       const { resourceType, resourceId } = req.body;
@@ -413,8 +656,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AWS Data Simulation endpoints
-  app.post("/api/generate-aws-data", async (req, res) => {
+  // AWS Data Simulation endpoints - Require admin role
+  app.post("/api/generate-aws-data", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { DataGenerator } = await import('./services/data-generator.js');
       const generator = new DataGenerator(storage);
@@ -426,7 +669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/clear-simulation-data", async (req, res) => {
+  app.post("/api/clear-simulation-data", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { DataGenerator } = await import('./services/data-generator.js');
       const generator = new DataGenerator(storage);
@@ -438,16 +681,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Basic auth check (simplified - in production use proper auth middleware)
-  const requireAuth = (req: any, res: any, next: any) => {
-    // TODO: Implement proper authentication/authorization
-    // For now, just log the access attempt
-    console.log('Configuration access attempt from:', req.ip);
-    next();
-  };
-
-  // System Configuration Routes
-  app.get("/api/system-config", requireAuth, async (req, res) => {
+  // System Configuration Routes - Require admin role
+  app.get("/api/system-config", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const configs = await storage.getAllSystemConfig();
       res.json(configs);
@@ -457,7 +692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/system-config/:key", requireAuth, async (req, res) => {
+  app.get("/api/system-config/:key", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const config = await storage.getSystemConfig(req.params.key);
       if (!config) {
@@ -470,7 +705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/system-config", requireAuth, async (req, res) => {
+  app.post("/api/system-config", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { insertSystemConfigSchema } = await import("@shared/schema");
       const validatedData = insertSystemConfigSchema.parse(req.body);
@@ -482,7 +717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/system-config/:key", requireAuth, async (req, res) => {
+  app.put("/api/system-config/:key", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { value, updatedBy } = req.body;
       
@@ -511,7 +746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Agent Configuration Helper Routes
-  app.get("/api/agent-config", requireAuth, async (req, res) => {
+  app.get("/api/agent-config", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { configService } = await import('./services/config.js');
       const agentConfig = await configService.getAgentConfig();
@@ -522,7 +757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/agent-config/autonomous-mode", requireAuth, async (req, res) => {
+  app.post("/api/agent-config/autonomous-mode", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { enabled, updatedBy } = req.body;
       
@@ -547,7 +782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/agent-config/prod-mode", requireAuth, async (req, res) => {
+  app.post("/api/agent-config/prod-mode", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { enabled, updatedBy } = req.body;
       
@@ -572,7 +807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/agent-config/simulation-mode", requireAuth, async (req, res) => {
+  app.post("/api/agent-config/simulation-mode", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const { enabled, updatedBy } = req.body;
       
@@ -598,7 +833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Mode History routes
-  app.get("/api/ai-mode-history", requireAuth, async (req, res) => {
+  app.get("/api/ai-mode-history", authenticateToken, requireRole('admin'), async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 10;
       const history = await storage.getRecentAiModeHistory(limit);
@@ -610,7 +845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Manual AI analysis trigger endpoint
-  app.post("/api/ai/analyze", async (req, res) => {
+  app.post("/api/ai/analyze", authenticateToken, async (req, res) => {
     try {
       console.log('🤖 Manual AI analysis triggered...');
       

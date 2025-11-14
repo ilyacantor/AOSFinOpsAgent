@@ -7,11 +7,73 @@
 const PLATFORM_BASE_URL = import.meta.env.VITE_AOS_BASE_URL || import.meta.env.VITE_PLATFORM_URL || 'https://autonomos-platform.replit.app';
 const USE_PLATFORM = import.meta.env.VITE_USE_PLATFORM === 'true';
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const BASE_DELAY = 1000; // 1 second
+const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff: 1s, 2s, 4s
+
 // Export configuration for testing
 export const AOS_CONFIG = {
   baseUrl: PLATFORM_BASE_URL,
   usePlatform: USE_PLATFORM,
 };
+
+/**
+ * Check if an error is retryable (network errors and 5xx responses)
+ */
+function isRetryableError(error: any, response?: Response): boolean {
+  // Network errors (no response)
+  if (!response && (error.message?.includes('fetch failed') || error.message?.includes('network'))) {
+    return true;
+  }
+  
+  // HTTP 5xx errors
+  if (response && response.status >= 500 && response.status < 600) {
+    return true;
+  }
+  
+  // Don't retry 4xx client errors
+  return false;
+}
+
+/**
+ * Retry a fetch operation with exponential backoff
+ */
+async function retryFetch<T>(
+  operation: () => Promise<T>,
+  context: string
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const response = (error as any).response;
+      
+      // Check if we should retry
+      if (attempt === MAX_RETRIES || !isRetryableError(error, response)) {
+        console.error(`[aosClient:${context}] Failed after ${attempt + 1} attempts:`, error);
+        throw error;
+      }
+      
+      // Calculate delay for this attempt
+      const delay = RETRY_DELAYS[attempt] || BASE_DELAY * Math.pow(2, attempt);
+      
+      console.log(
+        `[aosClient:${context}] Attempt ${attempt + 1}/${MAX_RETRIES + 1} failed, ` +
+        `retrying in ${delay}ms...`,
+        error.message || error
+      );
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
+}
 
 export interface PlatformViewResponse<T = any> {
   data: T;
@@ -94,42 +156,53 @@ export async function getView<T = any>(viewName: string): Promise<PlatformViewRe
     }
   }
 
-  // Try platform first, fall back to local on error
+  // Try platform first with retry logic, fall back to local on error
   try {
-    const res = await fetch(`${PLATFORM_BASE_URL}/api/v1/dcl/views/${viewName}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.warn(`[aosClient] Platform view fetch failed (${res.status}), falling back to local`, errorText);
-      
-      // Graceful fallback to local API
-      const localEndpoint = VIEW_TO_LOCAL_ENDPOINT[viewName] || `/api/${viewName}`;
-      const localRes = await fetch(localEndpoint, {
+    return await retryFetch(async () => {
+      const res = await fetch(`${PLATFORM_BASE_URL}/api/v1/dcl/views/${viewName}`, {
         method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         credentials: 'include',
       });
-      
-      if (!localRes.ok) {
-        throw new Error(`Both platform and local API failed for view ${viewName}`);
-      }
-      
-      const data = await localRes.json();
-      return {
-        data,
-        trace_id: `fallback-${Date.now()}`,
-        timestamp: new Date().toISOString()
-      };
-    }
 
-    return await res.json();
+      if (!res.ok) {
+        // For 5xx errors, throw to trigger retry
+        if (res.status >= 500 && res.status < 600) {
+          const errorText = await res.text();
+          const error = new Error(`Platform API error ${res.status}: ${errorText}`);
+          (error as any).response = res;
+          throw error;
+        }
+        
+        // For 4xx errors, don't retry - fall back to local immediately
+        const errorText = await res.text();
+        console.warn(`[aosClient] Platform view fetch failed (${res.status}), falling back to local`, errorText);
+        
+        // Graceful fallback to local API
+        const localEndpoint = VIEW_TO_LOCAL_ENDPOINT[viewName] || `/api/${viewName}`;
+        const localRes = await fetch(localEndpoint, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        
+        if (!localRes.ok) {
+          throw new Error(`Both platform and local API failed for view ${viewName}`);
+        }
+        
+        const data = await localRes.json();
+        return {
+          data,
+          trace_id: `fallback-${Date.now()}`,
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      return await res.json();
+    }, `getView(${viewName})`);
   } catch (error) {
-    console.error(`[aosClient] Platform error, falling back to local for ${viewName}:`, error);
+    console.error(`[aosClient] Platform error after retries, falling back to local for ${viewName}:`, error);
     
     // Final fallback to local API
     const localEndpoint = VIEW_TO_LOCAL_ENDPOINT[viewName] || `/api/${viewName}`;
@@ -187,44 +260,55 @@ export async function postIntent(
     headers['Idempotency-Key'] = options.idempotencyKey;
   }
 
-  // Try platform first, fall back to mock on error
+  // Try platform first with retry logic, fall back to degraded mode on error
   try {
-    const res = await fetch(`${PLATFORM_BASE_URL}/api/v1/intents/${agentId}/${action}`, {
-      method: 'POST',
-      headers,
-      credentials: 'include',
-      body: JSON.stringify(params),
-    });
+    return await retryFetch(async () => {
+      const res = await fetch(`${PLATFORM_BASE_URL}/api/v1/intents/${agentId}/${action}`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(params),
+      });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.warn(`[aosClient] Platform intent failed (${res.status}), falling back to degraded mode`, errorText);
-      
-      // Graceful fallback with failed status to indicate degraded mode
-      return {
-        task_id: `fallback-task-${Date.now()}`,
-        trace_id: `fallback-trace-${Date.now()}`,
-        status: 'failed',
-        message: `Platform unavailable (${res.status}), operation not executed - using degraded mode`,
-        result: { 
-          success: false, 
-          mode: 'fallback',
-          reason: `platform_unavailable_${res.status}`,
-          degraded: true
+      if (!res.ok) {
+        // For 5xx errors, throw to trigger retry
+        if (res.status >= 500 && res.status < 600) {
+          const errorText = await res.text();
+          const error = new Error(`Platform API error ${res.status}: ${errorText}`);
+          (error as any).response = res;
+          throw error;
         }
-      };
-    }
+        
+        // For 4xx errors, don't retry - return degraded mode immediately
+        const errorText = await res.text();
+        console.warn(`[aosClient] Platform intent failed (${res.status}), falling back to degraded mode`, errorText);
+        
+        // Graceful fallback with failed status to indicate degraded mode
+        return {
+          task_id: `fallback-task-${Date.now()}`,
+          trace_id: `fallback-trace-${Date.now()}`,
+          status: 'failed',
+          message: `Platform unavailable (${res.status}), operation not executed - using degraded mode`,
+          result: { 
+            success: false, 
+            mode: 'fallback',
+            reason: `platform_unavailable_${res.status}`,
+            degraded: true
+          }
+        };
+      }
 
-    return await res.json();
+      return await res.json();
+    }, `postIntent(${agentId}/${action})`);
   } catch (error) {
-    console.error(`[aosClient] Platform error, falling back to degraded mode for ${agentId}/${action}:`, error);
+    console.error(`[aosClient] Platform error after retries, falling back to degraded mode for ${agentId}/${action}:`, error);
     
     // Final fallback with failed status to indicate degraded mode
     return {
       task_id: `error-fallback-task-${Date.now()}`,
       trace_id: `error-fallback-trace-${Date.now()}`,
       status: 'failed',
-      message: `Platform error, operation not executed: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Platform error after retries, operation not executed: ${error instanceof Error ? error.message : String(error)}`,
       result: { 
         success: false, 
         mode: 'error-fallback',

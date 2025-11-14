@@ -1,21 +1,159 @@
 import { storage } from '../storage.js';
+import { logger } from './logger.js';
 
 export interface AgentConfig {
   autonomousMode: boolean;
-  prodMode: boolean; // When ON: AI mode with RAG, When OFF: heuristics mode
-  simulationMode: boolean; // When ON: synthetic dynamic data generation, When OFF: static data
+  prodMode: boolean;
+  simulationMode: boolean;
   maxAutonomousRiskLevel: number;
   approvalRequiredAboveSavings: number;
   autoExecuteTypes: string[];
-  prodModeTimeRemaining?: number; // Seconds remaining before auto-revert (only when prodMode is true)
+  prodModeTimeRemaining?: number;
+}
+
+export interface DatabaseConfig {
+  url: string;
+  poolSize: number;
+}
+
+export interface PlatformConfig {
+  baseUrl: string;
+  tenantId: string;
+  agentId: string;
+  jwt: string;
+  enabled: boolean;
+}
+
+export interface SecurityConfig {
+  jwtSecret: string;
+  jwtExpiry: string;
+  bcryptRounds: number;
+}
+
+export interface FeatureFlags {
+  usePlatform: boolean;
+  simulationMode: boolean;
+  autoApproveLowRisk: boolean;
+}
+
+export interface RateLimitConfig {
+  windowMs: number;
+  maxRequests: number;
+}
+
+export interface AppConfig {
+  database: DatabaseConfig;
+  platform: PlatformConfig;
+  security: SecurityConfig;
+  features: FeatureFlags;
+  rateLimit: RateLimitConfig;
+  agent: AgentConfig;
 }
 
 export class ConfigService {
   private static instance: ConfigService;
   private configCache: Map<string, string> = new Map();
-  private prodModeExpiresAt: number | null = null; // Timestamp when prod mode expires
+  private prodModeExpiresAt: number | null = null;
+  private appConfig: AppConfig | null = null;
 
   private constructor() {}
+
+  private getEnv(key: string, defaultValue?: string, required = false): string {
+    const value = process.env[key] || defaultValue;
+    
+    if (required && !value) {
+      const error = `FATAL: Required environment variable ${key} is not set`;
+      logger.error(error);
+      throw new Error(error);
+    }
+    
+    return value || '';
+  }
+
+  private getEnvNumber(key: string, defaultValue: number): number {
+    const value = process.env[key];
+    if (!value) return defaultValue;
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed)) {
+      logger.warn(`Invalid number for ${key}, using default: ${defaultValue}`);
+      return defaultValue;
+    }
+    return parsed;
+  }
+
+  private getEnvBoolean(key: string, defaultValue: boolean): boolean {
+    const value = process.env[key];
+    if (!value) return defaultValue;
+    return value.toLowerCase() === 'true' || value === '1';
+  }
+
+  async validateAndLoadConfig(): Promise<AppConfig> {
+    if (this.appConfig) {
+      return this.appConfig;
+    }
+
+    logger.info('Loading and validating application configuration');
+
+    try {
+      const databaseUrl = this.getEnv('DATABASE_URL', '', false);
+      
+      const config: AppConfig = {
+        database: {
+          url: databaseUrl,
+          poolSize: this.getEnvNumber('DB_POOL_SIZE', 10)
+        },
+        platform: {
+          baseUrl: this.getEnv('VITE_AOS_BASE_URL', this.getEnv('VITE_PLATFORM_URL', '')),
+          tenantId: this.getEnv('AOS_TENANT_ID', ''),
+          agentId: this.getEnv('AOS_AGENT_ID', ''),
+          jwt: this.getEnv('AOS_JWT', ''),
+          enabled: this.getEnvBoolean('USE_PLATFORM', false)
+        },
+        security: {
+          jwtSecret: this.getEnv('JWT_SECRET', 'dev-secret-key-change-in-production'),
+          jwtExpiry: this.getEnv('JWT_EXPIRY', '24h'),
+          bcryptRounds: this.getEnvNumber('BCRYPT_ROUNDS', 10)
+        },
+        features: {
+          usePlatform: this.getEnvBoolean('USE_PLATFORM', false),
+          simulationMode: this.getEnvBoolean('SIMULATION_MODE', false),
+          autoApproveLowRisk: this.getEnvBoolean('AUTO_APPROVE_LOW_RISK', false)
+        },
+        rateLimit: {
+          windowMs: this.getEnvNumber('RATE_LIMIT_WINDOW_MS', 60000),
+          maxRequests: this.getEnvNumber('RATE_LIMIT_MAX_REQUESTS', 100)
+        },
+        agent: await this.getAgentConfig()
+      };
+
+      if (!config.security.jwtSecret || config.security.jwtSecret === 'dev-secret-key-change-in-production') {
+        logger.warn('JWT_SECRET not set or using default. Please set a secure secret in production');
+      }
+
+      if (config.platform.enabled && !config.platform.baseUrl) {
+        logger.warn('Platform integration enabled but VITE_AOS_BASE_URL not set');
+      }
+
+      this.appConfig = config;
+      logger.info('Configuration loaded successfully', {
+        platformEnabled: config.platform.enabled,
+        simulationMode: config.features.simulationMode,
+        rateLimitWindow: config.rateLimit.windowMs
+      });
+
+      return config;
+    } catch (error) {
+      logger.error('Failed to load configuration', {}, error as Error);
+      throw error;
+    }
+  }
+
+  getConfig(): AppConfig {
+    if (!this.appConfig) {
+      throw new Error('Configuration not loaded. Call validateAndLoadConfig() first');
+    }
+    return this.appConfig;
+  }
 
   static getInstance(): ConfigService {
     if (!ConfigService.instance) {

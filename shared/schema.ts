@@ -118,6 +118,21 @@ export const aiModeHistory = pgTable("ai_mode_history", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  requestId: varchar("request_id").notNull(),
+  userId: varchar("user_id"),
+  action: text("action").notNull(), // CREATE, UPDATE, DELETE, APPROVE, REJECT, EXECUTE
+  resourceType: text("resource_type").notNull(),
+  resourceId: text("resource_id"),
+  changes: jsonb("changes"),
+  metadata: jsonb("metadata"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const recommendationsRelations = relations(recommendations, ({ one }) => ({
   resource: one(awsResources, {
@@ -162,6 +177,7 @@ export const insertApprovalRequestSchema = createInsertSchema(approvalRequests).
 export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHistoricalCostSnapshotSchema = createInsertSchema(historicalCostSnapshots).omit({ id: true, createdAt: true });
 export const insertAiModeHistorySchema = createInsertSchema(aiModeHistory).omit({ id: true, createdAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true, timestamp: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -182,3 +198,5 @@ export type HistoricalCostSnapshot = typeof historicalCostSnapshots.$inferSelect
 export type InsertHistoricalCostSnapshot = z.infer<typeof insertHistoricalCostSnapshotSchema>;
 export type AiModeHistory = typeof aiModeHistory.$inferSelect;
 export type InsertAiModeHistory = z.infer<typeof insertAiModeHistorySchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
