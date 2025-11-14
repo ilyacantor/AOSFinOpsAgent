@@ -29,9 +29,62 @@ Preferred communication style: Simple, everyday language.
 - **Models**: Users, AWS resources, cost reports, recommendations, approval workflows
 
 ### Authentication & Authorization
-- **Authentication**: Session-based
-- **Authorization**: Role-based access (admin, user, CFO)
+- **Authentication**: JWT-based with localStorage persistence
+- **JWT TTL**: 2 hours with automatic expiration
+- **Authorization**: Role-based access control (admin, user)
+- **Registration**: Secure registration with role selection (admin/user)
+- **Login UI**: Dedicated authentication page with tabbed login/register interface
+- **Auth Guard**: Frontend route protection with automatic redirect to login
 - **Workflows**: Multi-stage approval for high-impact optimizations
+
+### Enterprise Security (Phase 2 Complete)
+- **Security Headers**: 
+  - Strict-Transport-Security (HSTS) with max-age 1 year, includeSubDomains
+  - X-Frame-Options: DENY (clickjacking protection)
+  - X-Content-Type-Options: nosniff (MIME sniffing protection)
+  - Content-Security-Policy (CSP) with strict directives
+  - X-XSS-Protection: 1; mode=block
+  - Referrer-Policy, Permissions-Policy, X-DNS-Prefetch-Control
+- **CORS Hardening**: 
+  - Production fail-closed (requires ALLOWED_ORIGINS env var)
+  - Rejects wildcard origins (*) in production
+  - Startup validation fails-fast if misconfigured
+  - Development mode allows localhost origins only
+- **Session Timeout Enforcement**:
+  - 2-hour maximum session age (iat-based)
+  - Hard JWT expiration validation (exp check)
+  - Applied to both REST API and WebSocket connections
+  - Warning headers when token expiring <15 min (X-Token-Expiring-Soon, X-Token-Expires-In)
+  - Middleware ordering: authenticateToken → enforceSessionTimeout → audit → handler
+- **Audit Logging**:
+  - 13+ critical endpoints logged (auth, recommendations, approvals, system config)
+  - Imperative logging in 4 complex workflows (approval, optimization, batch operations)
+  - Captures: userId, action, resourceType, resourceId, metadata, IP, user agent
+  - Asynchronous non-blocking writes (does not impact request latency)
+  - Only logs successful operations (2xx responses)
+- **Database Transactions**:
+  - Atomic operations for recommendation approval and optimization execution
+  - Retry logic with exponential backoff (3 retries)
+  - Automatic rollback on failure
+  - Transaction helpers: handleApprovalTransaction, handleOptimizationExecutionTransaction
+- **API Rate Limiting**:
+  - Auth endpoints: 5 requests/min (login, register)
+  - General API: 100 requests/min
+  - Write operations: 30 requests/min
+  - Read operations: 60 requests/min
+  - Per-IP enforcement with memory store
+- **WebSocket Security**:
+  - JWT authentication via query parameter
+  - Session age validation (2-hour limit)
+  - Token expiration check during connection
+  - Rejects stale sessions with code 1008 (Policy Violation)
+  - Connection refused for expired/invalid tokens
+- **Production Safety**:
+  - JWT_SECRET required at startup (32+ chars minimum)
+  - Fail-fast validation for missing/weak secrets
+  - Password hashing with bcrypt (10 rounds)
+  - Multi-tenant isolation via tenantId
+  - Circuit breakers and health check endpoints
 
 ### Real-time Communication
 - **WebSocket Server**: Integrated for dashboard updates
