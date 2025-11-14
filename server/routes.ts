@@ -5,7 +5,9 @@ import { storage, validatePassword, pineconeCircuitBreaker } from "./storage";
 import { awsService } from "./services/aws";
 import { sendOptimizationComplete } from "./services/slack";
 import { insertRecommendationSchema, insertApprovalRequestSchema, insertUserSchema } from "@shared/schema";
-import { authenticateToken, requireRole, generateToken } from "./middleware/auth";
+import { authenticateToken, requireRole, generateToken, enforceSessionTimeout } from "./middleware/auth";
+import { auditMiddleware, logAudit, auditActions, auditResourceTypes } from "./middleware/audit";
+import { handleApprovalTransaction, handleOptimizationExecutionTransaction, withTransaction } from './lib/transaction';
 // Import scheduler service to ensure it's instantiated and configuration is initialized
 import { schedulerService } from "./services/scheduler.js";
 import { db } from "./db";
@@ -25,6 +27,12 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Middleware chains for authenticated routes
+  // enforceSessionTimeout runs AFTER authenticateToken to ensure req.user is populated
+  const authenticated = [authenticateToken, enforceSessionTimeout];
+  const authenticatedAdmin = [authenticateToken, enforceSessionTimeout, requireRole('admin')];
+  const authenticatedUser = [authenticateToken, enforceSessionTimeout, requireRole('user')];
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time updates
@@ -85,7 +93,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: string;
         role: string;
         tenantId?: string;
+        iat?: number;
+        exp?: number;
       };
+
+      // Validate session age - CRITICAL SECURITY CHECK
+      const now = Math.floor(Date.now() / 1000);
+      const MAX_SESSION_AGE = 2 * 60 * 60; // 2 hours (matches REST enforceSessionTimeout)
+
+      // Check 1: Token expiration (hard expiration)
+      if (payload.exp && payload.exp <= now) {
+        console.error('[WebSocket Auth] Token expired', {
+          username: payload.username,
+          exp: payload.exp,
+          now: now,
+          expired: now - payload.exp
+        });
+        ws.close(1008, 'Token expired');
+        return;
+      }
+
+      // Check 2: Session age (absolute session duration from issuance)
+      if (payload.iat) {
+        const sessionAge = now - payload.iat;
+        if (sessionAge > MAX_SESSION_AGE) {
+          console.error('[WebSocket Auth] Session too old - please login again', {
+            username: payload.username,
+            sessionAge: sessionAge,
+            maxAge: MAX_SESSION_AGE,
+            overAge: sessionAge - MAX_SESSION_AGE
+          });
+          ws.close(1008, 'Session too old - please login again');
+          return;
+        }
+      }
 
       // Store authenticated user info in WebSocket object
       ws.userId = payload.userId;
@@ -354,7 +395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Dashboard metrics endpoint
-  app.get("/api/dashboard/metrics", authenticateToken, async (req, res) => {
+  app.get("/api/dashboard/metrics", ...authenticated, async (req, res) => {
     try {
       const metrics = await storage.getDashboardMetrics();
       res.json(metrics);
@@ -365,7 +406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cost trends endpoint
-  app.get("/api/dashboard/cost-trends", authenticateToken, async (req, res) => {
+  app.get("/api/dashboard/cost-trends", ...authenticated, async (req, res) => {
     try {
       const trends = await storage.getMonthlyCostSummary();
       res.json(trends);
@@ -376,7 +417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Metrics summary endpoint for autopilot
-  app.get("/api/metrics/summary", authenticateToken, async (req, res) => {
+  app.get("/api/metrics/summary", ...authenticated, async (req, res) => {
     try {
       const summary = await storage.getMetricsSummary();
       res.json(summary);
@@ -387,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Optimization mix endpoint (Autonomous vs HITL distribution)
-  app.get("/api/metrics/optimization-mix", authenticateToken, async (req, res) => {
+  app.get("/api/metrics/optimization-mix", ...authenticated, async (req, res) => {
     try {
       const mix = await storage.getOptimizationMix();
       res.json(mix);
@@ -398,7 +439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Prod Mode toggle with auto-revert
-  app.post("/api/mode/prod", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.post("/api/mode/prod", ...authenticatedAdmin, async (req, res) => {
     try {
       const { enabled } = req.body;
       const { configService } = await import('./services/config.js');
@@ -446,7 +487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Authentication endpoints
-  app.post("/api/register", async (req, res) => {
+  app.post("/api/register", auditMiddleware(auditActions.REGISTER, auditResourceTypes.USER, req => req.body?.username), async (req, res) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
       
@@ -481,7 +522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/login", async (req, res) => {
+  app.post("/api/login", auditMiddleware(auditActions.LOGIN, auditResourceTypes.SESSION, req => req.body?.username), async (req, res) => {
     try {
       const { username, password } = req.body;
 
@@ -522,13 +563,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/logout", authenticateToken, async (req, res) => {
+  app.post("/api/logout", ...authenticated, auditMiddleware(auditActions.LOGOUT, auditResourceTypes.SESSION), async (req, res) => {
     // JWT logout is handled client-side by removing the token
     // This endpoint exists for consistency and can be used for logging/analytics
     res.json({ message: "Logged out successfully" });
   });
 
-  app.get("/api/me", authenticateToken, async (req, res) => {
+  app.get("/api/me", ...authenticated, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "Not authenticated" });
@@ -551,7 +592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Recommendations endpoints
-  app.get("/api/recommendations", authenticateToken, async (req, res) => {
+  app.get("/api/recommendations", ...authenticated, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       const recommendations = await storage.getRecommendations(status);
@@ -562,7 +603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/recommendations/:id", authenticateToken, async (req, res) => {
+  app.get("/api/recommendations/:id", ...authenticated, async (req, res) => {
     try {
       const recommendation = await storage.getRecommendation(req.params.id);
       if (!recommendation) {
@@ -575,7 +616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/recommendations", authenticateToken, async (req, res) => {
+  app.post("/api/recommendations", ...authenticated, auditMiddleware(auditActions.CREATE, auditResourceTypes.RECOMMENDATION, req => req.body?.id), async (req, res) => {
     try {
       const validatedData = insertRecommendationSchema.parse(req.body);
       const recommendation = await storage.createRecommendation(validatedData);
@@ -595,7 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Approval request endpoints - Require admin or CFO role
-  app.post("/api/approval-requests", authenticateToken, requireRole('user'), async (req, res) => {
+  app.post("/api/approval-requests", ...authenticatedUser, auditMiddleware(auditActions.CREATE, auditResourceTypes.APPROVAL_REQUEST, req => req.body?.recommendationId), async (req, res) => {
     try {
       console.log("Creating approval request with data:", req.body);
       const validatedData = insertApprovalRequestSchema.parse(req.body);
@@ -660,52 +701,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/approval-requests/:id", authenticateToken, requireRole('user'), async (req, res) => {
+  app.patch("/api/approval-requests/:id", ...authenticatedUser, auditMiddleware(auditActions.APPROVE, auditResourceTypes.APPROVAL_REQUEST, req => req.params.id), async (req, res) => {
     try {
       const { status, approvedBy, comments } = req.body;
-      const updateData: any = {
-        status,
-        approvedBy,
-        comments,
-      };
       
-      if (status === 'approved') {
-        updateData.approvalDate = new Date();
-      }
-      
-      const updatedRequest = await storage.updateApprovalRequest(req.params.id, updateData);
+      // First, get the existing approval request to find the recommendationId
+      const { approvalRequests } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      const [existingRequest] = await db.select().from(approvalRequests).where(eq(approvalRequests.id, req.params.id)).limit(1);
 
-      if (!updatedRequest) {
+      if (!existingRequest) {
         return res.status(404).json({ error: "Approval request not found" });
       }
 
-      // If approved, execute the optimization
+      // Use transaction to update both approval request and recommendation atomically
+      const { recommendation, approvalRequest } = await handleApprovalTransaction({
+        recommendationId: existingRequest.recommendationId,
+        approvalRequestId: req.params.id,
+        status,
+        approvedBy,
+        comments,
+        tenantId: req.user?.tenantId || 'default-tenant'
+      }, {
+        requestId: (req as any).requestId,
+        userId: req.user?.userId
+      });
+
+      // If approved, execute the optimization (separate operation, kept as is)
       if (status === 'approved') {
-        const recommendation = await storage.getRecommendation(updatedRequest.recommendationId);
-        if (recommendation) {
-          const tenantId = recommendation.tenantId || req.user?.tenantId || 'default-tenant';
-          try {
-            await executeOptimization(recommendation);
-            await storage.updateRecommendationStatus(recommendation.id, 'executed');
-            
-            // Broadcast optimization execution to tenant
-            broadcastToTenant(tenantId, {
-              type: 'optimization_executed',
-              data: { recommendationId: recommendation.id, status: 'success' }
-            });
-          } catch (error) {
-            console.error("Error executing optimization:", error);
-            await storage.updateRecommendationStatus(recommendation.id, 'failed');
-            
-            broadcastToTenant(tenantId, {
-              type: 'optimization_executed',
-              data: { recommendationId: recommendation.id, status: 'failed', error: error instanceof Error ? error.message : String(error) }
-            });
-          }
+        const tenantId = recommendation.tenantId || req.user?.tenantId || 'default-tenant';
+        try {
+          const execResult = await executeOptimization(recommendation);
+          await storage.updateRecommendationStatus(recommendation.id, 'executed');
+          
+          await logAudit(req, {
+            action: auditActions.EXECUTE,
+            resourceType: auditResourceTypes.OPTIMIZATION,
+            resourceId: recommendation.id,
+            metadata: { 
+              tenantId: req.user?.tenantId || 'default-tenant',
+              status: 'success',
+              savings: recommendation.projectedMonthlySavings
+            }
+          });
+          
+          // Broadcast optimization execution to tenant
+          broadcastToTenant(tenantId, {
+            type: 'optimization_executed',
+            data: { recommendationId: recommendation.id, status: 'success' }
+          });
+        } catch (error) {
+          console.error("Error executing optimization:", error);
+          await storage.updateRecommendationStatus(recommendation.id, 'failed');
+          
+          await logAudit(req, {
+            action: auditActions.EXECUTE,
+            resourceType: auditResourceTypes.OPTIMIZATION,
+            resourceId: recommendation.id,
+            metadata: { 
+              tenantId: req.user?.tenantId || 'default-tenant',
+              status: 'failed',
+              error: error instanceof Error ? error.message : String(error)
+            }
+          });
+          
+          broadcastToTenant(tenantId, {
+            type: 'optimization_executed',
+            data: { recommendationId: recommendation.id, status: 'failed', error: error instanceof Error ? error.message : String(error) }
+          });
         }
       }
 
-      res.json(updatedRequest);
+      res.json(approvalRequest);
     } catch (error) {
       console.error("Error updating approval request:", error);
       res.status(400).json({ error: "Failed to update approval request" });
@@ -713,7 +780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk approve all pending recommendations - Require admin or CFO role
-  app.post("/api/approve-all-recommendations", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.post("/api/approve-all-recommendations", ...authenticatedAdmin, auditMiddleware(auditActions.APPROVE, auditResourceTypes.OPTIMIZATION), async (req, res) => {
     try {
       console.log("Starting bulk approval of all pending recommendations");
       const approvedBy = req.user?.userId || 'current-user';
@@ -739,30 +806,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process each pending recommendation
       for (const recommendation of pendingRecommendations) {
         try {
-          // Create approval request
+          const tenantId = recommendation.tenantId || req.user?.tenantId || 'default-tenant';
+          
+          // Create approval request with pending status first
           const approvalRequest = await storage.createApprovalRequest({
             recommendationId: recommendation.id,
             requestedBy: approvedBy,
             approverRole: 'Head of Cloud Platform',
+            status: 'pending',
+            requestDate: new Date()
+          } as any);
+
+          // Use transaction to update both recommendation and approval request to approved atomically
+          const { recommendation: approvedRec, approvalRequest: approvedReq } = await handleApprovalTransaction({
+            recommendationId: recommendation.id,
+            approvalRequestId: approvalRequest.id,
             status: 'approved',
             approvedBy,
             comments: comments || `Bulk approved with ${pendingRecommendations.length - 1} other recommendations`,
-            approvalDate: new Date()
-          } as any);
-
-          // Update recommendation status
-          await storage.updateRecommendationStatus(recommendation.id, 'approved');
-
-          // Create optimization history entry
-          await storage.createOptimizationHistory({
-            recommendationId: recommendation.id,
-            executedBy: approvedBy,
-            executionDate: new Date(),
-            beforeConfig: recommendation.currentConfig as any,
-            afterConfig: recommendation.recommendedConfig as any,
-            actualSavings: recommendation.projectedMonthlySavings,
-            status: 'approved'
+            tenantId
+          }, {
+            requestId: (req as any).requestId,
+            userId: req.user?.userId
           });
+
+          // Audit log for individual recommendation approval
+          await logAudit(req, {
+            action: auditActions.APPROVE,
+            resourceType: auditResourceTypes.RECOMMENDATION,
+            resourceId: recommendation.id,
+            metadata: { tenantId }
+          });
+
+          // Execute the optimization
+          try {
+            let execResult;
+            if (recommendation.type === 'resize' && recommendation.resourceId.includes('redshift')) {
+              const config = recommendation.recommendedConfig as any;
+              execResult = await awsService.resizeRedshiftCluster(
+                recommendation.resourceId,
+                config.nodeType,
+                config.numberOfNodes
+              );
+            }
+
+            // Use transaction to update recommendation to executed and create history atomically
+            await handleOptimizationExecutionTransaction({
+              recommendationId: recommendation.id,
+              executedBy: approvedBy,
+              beforeConfig: recommendation.currentConfig as any,
+              afterConfig: recommendation.recommendedConfig as any,
+              actualSavings: recommendation.projectedMonthlySavings,
+              status: 'success',
+              tenantId
+            }, {
+              requestId: (req as any).requestId,
+              userId: req.user?.userId
+            });
+
+            // Send Slack notification
+            await sendOptimizationComplete({
+              title: recommendation.title,
+              resourceId: recommendation.resourceId,
+              actualSavings: Number(recommendation.projectedMonthlySavings),
+              status: 'success'
+            });
+
+            await logAudit(req, {
+              action: auditActions.EXECUTE,
+              resourceType: auditResourceTypes.OPTIMIZATION,
+              resourceId: recommendation.id,
+              metadata: { 
+                status: 'success',
+                tenantId
+              }
+            });
+          } catch (execError) {
+            console.error(`Error executing optimization for ${recommendation.id}:`, execError);
+            
+            // Use transaction to update recommendation to failed and create history atomically
+            await handleOptimizationExecutionTransaction({
+              recommendationId: recommendation.id,
+              executedBy: approvedBy,
+              beforeConfig: recommendation.currentConfig as any,
+              afterConfig: recommendation.recommendedConfig as any,
+              status: 'failed',
+              errorMessage: execError instanceof Error ? execError.message : String(execError),
+              tenantId
+            }, {
+              requestId: (req as any).requestId,
+              userId: req.user?.userId
+            });
+
+            await logAudit(req, {
+              action: auditActions.EXECUTE,
+              resourceType: auditResourceTypes.OPTIMIZATION,
+              resourceId: recommendation.id,
+              metadata: { 
+                status: 'failed',
+                error: execError instanceof Error ? execError.message : String(execError),
+                tenantId
+              }
+            });
+          }
 
           approvedRecommendations.push({
             id: recommendation.id,
@@ -811,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Optimization history endpoint
-  app.get("/api/optimization-history", authenticateToken, async (req, res) => {
+  app.get("/api/optimization-history", ...authenticated, async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const history = await storage.getOptimizationHistory(limit);
@@ -823,7 +969,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AWS resources endpoint
-  app.get("/api/aws-resources", authenticateToken, async (req, res) => {
+  app.get("/api/aws-resources", ...authenticated, async (req, res) => {
     try {
       const resources = await storage.getAllAwsResources();
       res.json(resources);
@@ -834,13 +980,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Manual analysis trigger
-  app.post("/api/analyze-resources", authenticateToken, async (req, res) => {
+  app.post("/api/analyze-resources", ...authenticated, auditMiddleware(auditActions.EXECUTE, auditResourceTypes.AWS_RESOURCE), async (req, res) => {
     try {
       // Trigger analysis for specific resource type or all
       const { resourceType, resourceId } = req.body;
       
       if (resourceType === 'redshift' && resourceId) {
         const analysis = await awsService.analyzeRedshiftClusterOptimization(resourceId);
+        
+        await logAudit(req, {
+          action: auditActions.EXECUTE,
+          resourceType: auditResourceTypes.AWS_RESOURCE,
+          resourceId: resourceId,
+          metadata: {
+            resourceType: resourceType,
+            analysisResult: analysis ? 'success' : 'no_result',
+            tenantId: req.user?.tenantId || 'default-tenant'
+          }
+        });
+        
         res.json(analysis);
       } else {
         res.status(400).json({ error: "Invalid analysis request" });
@@ -852,7 +1010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AWS Data Simulation endpoints - Require admin role
-  app.post("/api/generate-aws-data", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.post("/api/generate-aws-data", ...authenticatedAdmin, auditMiddleware(auditActions.EXECUTE, auditResourceTypes.AWS_RESOURCE), async (req, res) => {
     try {
       const { DataGenerator } = await import('./services/data-generator.js');
       const generator = new DataGenerator(storage);
@@ -864,7 +1022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/clear-simulation-data", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.post("/api/clear-simulation-data", ...authenticatedAdmin, auditMiddleware(auditActions.DELETE, auditResourceTypes.AWS_RESOURCE), async (req, res) => {
     try {
       const { DataGenerator } = await import('./services/data-generator.js');
       const generator = new DataGenerator(storage);
@@ -877,7 +1035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // System Configuration Routes - Require admin role
-  app.get("/api/system-config", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.get("/api/system-config", ...authenticatedAdmin, async (req, res) => {
     try {
       const configs = await storage.getAllSystemConfig();
       res.json(configs);
@@ -887,7 +1045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/system-config/:key", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.get("/api/system-config/:key", ...authenticatedAdmin, async (req, res) => {
     try {
       const config = await storage.getSystemConfig(req.params.key);
       if (!config) {
@@ -900,7 +1058,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/system-config", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.post("/api/system-config", ...authenticatedAdmin, auditMiddleware(auditActions.CREATE, auditResourceTypes.SYSTEM_CONFIG, req => req.body?.key), async (req, res) => {
     try {
       const { insertSystemConfigSchema } = await import("@shared/schema");
       const validatedData = insertSystemConfigSchema.parse(req.body);
@@ -912,7 +1070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/system-config/:key", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.put("/api/system-config/:key", ...authenticatedAdmin, auditMiddleware(auditActions.UPDATE, auditResourceTypes.SYSTEM_CONFIG, req => req.params.key), async (req, res) => {
     try {
       const { value, updatedBy } = req.body;
       
@@ -941,7 +1099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Agent Configuration Helper Routes
-  app.get("/api/agent-config", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.get("/api/agent-config", ...authenticatedAdmin, async (req, res) => {
     try {
       const { configService } = await import('./services/config.js');
       const agentConfig = await configService.getAgentConfig();
@@ -952,7 +1110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/agent-config/autonomous-mode", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.post("/api/agent-config/autonomous-mode", ...authenticatedAdmin, auditMiddleware(auditActions.UPDATE, auditResourceTypes.SYSTEM_CONFIG, req => 'autonomous-mode'), async (req, res) => {
     try {
       const { enabled, updatedBy } = req.body;
       
@@ -978,7 +1136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/agent-config/prod-mode", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.post("/api/agent-config/prod-mode", ...authenticatedAdmin, auditMiddleware(auditActions.UPDATE, auditResourceTypes.SYSTEM_CONFIG, req => 'prod-mode'), async (req, res) => {
     try {
       const { enabled, updatedBy } = req.body;
       
@@ -1004,7 +1162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/agent-config/simulation-mode", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.post("/api/agent-config/simulation-mode", ...authenticatedAdmin, auditMiddleware(auditActions.UPDATE, auditResourceTypes.SYSTEM_CONFIG, req => 'simulation-mode'), async (req, res) => {
     try {
       const { enabled, updatedBy } = req.body;
       
@@ -1031,7 +1189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Mode History routes
-  app.get("/api/ai-mode-history", authenticateToken, requireRole('admin'), async (req, res) => {
+  app.get("/api/ai-mode-history", ...authenticatedAdmin, async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 10;
       const history = await storage.getRecentAiModeHistory(limit);
@@ -1043,13 +1201,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Manual AI analysis trigger endpoint
-  app.post("/api/ai/analyze", authenticateToken, async (req, res) => {
+  app.post("/api/ai/analyze", ...authenticated, async (req, res) => {
     try {
       console.log('🤖 Manual AI analysis triggered...');
       
       // Trigger AI analysis manually (useful for testing)
       schedulerService.triggerAIAnalysis().catch(err => {
         console.error('AI analysis error:', err);
+      });
+      
+      await logAudit(req, {
+        action: auditActions.EXECUTE,
+        resourceType: 'ai_analysis',
+        metadata: { 
+          prompt: req.body.prompt || 'manual_trigger',
+          tenantId: req.user?.tenantId || 'default-tenant'
+        }
       });
       
       res.json({ 
