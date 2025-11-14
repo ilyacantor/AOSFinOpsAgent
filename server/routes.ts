@@ -9,6 +9,20 @@ import { authenticateToken, requireRole, generateToken } from "./middleware/auth
 // Import scheduler service to ensure it's instantiated and configuration is initialized
 import { schedulerService } from "./services/scheduler.js";
 import { db } from "./db";
+import jwt from 'jsonwebtoken';
+import { URL } from 'url';
+import type { IncomingMessage } from 'http';
+
+// Extended WebSocket interface with authentication metadata
+interface AuthenticatedWebSocket extends WebSocket {
+  userId?: string;
+  username?: string;
+  tenantId?: string;
+  connectedAt?: Date;
+  isAlive?: boolean;
+  lastActivity?: Date;
+  ipAddress?: string;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -16,18 +30,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // WebSocket server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
-  // Store connected clients
-  const clients = new Set<WebSocket>();
+  // Store connected clients with authentication
+  const clients = new Set<AuthenticatedWebSocket>();
 
-  wss.on('connection', (ws) => {
-    clients.add(ws);
+  // Connection rate limiting: Track connections per IP
+  const connectionsByIP = new Map<string, number>();
+  const MAX_CONNECTIONS_PER_IP = 10;
+  const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+  const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
+
+  const JWT_SECRET = process.env.JWT_SECRET || '';
+
+  // WebSocket connection handler with authentication
+  wss.on('connection', (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
+    const clientIP = req.socket.remoteAddress || 'unknown';
+    ws.ipAddress = clientIP;
+
+    // Rate limiting: Check connections per IP
+    const currentConnections = connectionsByIP.get(clientIP) || 0;
+    if (currentConnections >= MAX_CONNECTIONS_PER_IP) {
+      console.error(`[WebSocket Auth] Rate limit exceeded for IP: ${clientIP}`);
+      ws.close(1008, 'Too many connections from this IP');
+      return;
+    }
+
+    // Origin validation to prevent CSRF
+    const origin = req.headers.origin;
+    const allowedOrigins = [
+      process.env.REPLIT_DOMAINS?.split(',') || [],
+      'http://localhost:5000',
+      'https://localhost:5000'
+    ].flat();
     
+    if (origin && allowedOrigins.length > 0 && !allowedOrigins.some(allowed => origin.includes(allowed))) {
+      console.error(`[WebSocket Auth] Invalid origin: ${origin}`);
+      ws.close(1008, 'Invalid origin');
+      return;
+    }
+
+    // Parse JWT token from query parameters
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    const token = url.searchParams.get('token');
+
+    if (!token) {
+      console.error('[WebSocket Auth] No token provided');
+      ws.close(1008, 'Authentication required');
+      return;
+    }
+
+    // Verify JWT token
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as {
+        userId: string;
+        username: string;
+        role: string;
+        tenantId?: string;
+      };
+
+      // Store authenticated user info in WebSocket object
+      ws.userId = payload.userId;
+      ws.username = payload.username;
+      ws.tenantId = payload.tenantId || 'default-tenant';
+      ws.connectedAt = new Date();
+      ws.isAlive = true;
+      ws.lastActivity = new Date();
+
+      console.log(`[WebSocket Auth] User authenticated: ${payload.username} (tenant: ${ws.tenantId})`);
+
+      // Add to clients and update connection count
+      clients.add(ws);
+      connectionsByIP.set(clientIP, currentConnections + 1);
+
+      // Send connection success message
+      ws.send(JSON.stringify({
+        type: 'connection_established',
+        data: {
+          userId: ws.userId,
+          username: ws.username,
+          tenantId: ws.tenantId,
+          connectedAt: ws.connectedAt
+        }
+      }));
+
+    } catch (error) {
+      console.error('[WebSocket Auth] Invalid token:', error instanceof Error ? error.message : error);
+      ws.close(1008, 'Invalid or expired token');
+      return;
+    }
+
+    // Handle incoming messages with tenant validation
+    ws.on('message', (message: string) => {
+      try {
+        ws.lastActivity = new Date();
+        const data = JSON.parse(message.toString());
+        
+        // Validate that message includes tenantId matching the connection
+        if (data.tenantId && data.tenantId !== ws.tenantId) {
+          console.error(`[WebSocket Security] Tenant mismatch for user ${ws.username}: expected ${ws.tenantId}, got ${data.tenantId}`);
+          ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: 'Tenant validation failed' }
+          }));
+          return;
+        }
+
+        // Process message (can be extended for different message types)
+        console.log(`[WebSocket] Message from ${ws.username} (tenant: ${ws.tenantId}):`, data.type);
+      } catch (error) {
+        console.error('[WebSocket] Error processing message:', error);
+      }
+    });
+
+    // Heartbeat: Pong response
+    ws.on('pong', () => {
+      ws.isAlive = true;
+      ws.lastActivity = new Date();
+    });
+
+    // Connection close handler
     ws.on('close', () => {
+      console.log(`[WebSocket] Connection closed for user ${ws.username} (tenant: ${ws.tenantId})`);
       clients.delete(ws);
+      
+      // Decrement connection count for this IP
+      const count = connectionsByIP.get(clientIP) || 0;
+      if (count <= 1) {
+        connectionsByIP.delete(clientIP);
+      } else {
+        connectionsByIP.set(clientIP, count - 1);
+      }
+    });
+
+    ws.on('error', (error) => {
+      console.error(`[WebSocket] Error for user ${ws.username}:`, error);
     });
   });
 
-  // Broadcast to all connected clients
+  // Heartbeat mechanism: Ping all clients every 30 seconds
+  const heartbeatInterval = setInterval(() => {
+    clients.forEach((ws) => {
+      if (ws.isAlive === false) {
+        console.log(`[WebSocket Heartbeat] Terminating dead connection for user ${ws.username}`);
+        return ws.terminate();
+      }
+      
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, HEARTBEAT_INTERVAL);
+
+  // Idle timeout: Disconnect clients idle for more than 5 minutes
+  const idleCheckInterval = setInterval(() => {
+    const now = Date.now();
+    clients.forEach((ws) => {
+      if (ws.lastActivity && (now - ws.lastActivity.getTime()) > IDLE_TIMEOUT) {
+        console.log(`[WebSocket Idle] Disconnecting idle user ${ws.username} (idle for ${Math.floor((now - ws.lastActivity.getTime()) / 1000)}s)`);
+        ws.close(1000, 'Connection idle timeout');
+      }
+    });
+  }, 60000); // Check every minute
+
+  // Cleanup on server shutdown
+  wss.on('close', () => {
+    clearInterval(heartbeatInterval);
+    clearInterval(idleCheckInterval);
+  });
+
+  // Broadcast to all connected clients (legacy - use broadcastToTenant instead)
   const broadcast = (data: any) => {
     const message = JSON.stringify(data);
     clients.forEach(client => {
@@ -35,6 +204,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         client.send(message);
       }
     });
+  };
+
+  // Tenant-scoped broadcast: Only send to clients in the same tenant
+  const broadcastToTenant = (tenantId: string, data: any) => {
+    const message = JSON.stringify({
+      ...data,
+      tenantId // Always include tenantId in broadcast messages
+    });
+    
+    let recipientCount = 0;
+    clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN && client.tenantId === tenantId) {
+        client.send(message);
+        recipientCount++;
+      }
+    });
+    
+    console.log(`[WebSocket Broadcast] Sent ${data.type} to ${recipientCount} clients in tenant ${tenantId}`);
   };
 
   // Prod Mode auto-revert state
@@ -271,11 +458,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const user = await storage.createUser(validatedData);
       
-      // Generate JWT token
+      // Generate JWT token with tenantId
       const token = generateToken({
         userId: user.id,
         username: user.username,
-        role: user.role
+        role: user.role,
+        tenantId: user.tenantId || 'default-tenant'
       });
 
       res.json({ 
@@ -283,7 +471,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           username: user.username,
-          role: user.role
+          role: user.role,
+          tenantId: user.tenantId
         }
       });
     } catch (error) {
@@ -310,11 +499,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      // Generate JWT token
+      // Generate JWT token with tenantId
       const token = generateToken({
         userId: user.id,
         username: user.username,
-        role: user.role
+        role: user.role,
+        tenantId: user.tenantId || 'default-tenant'
       });
 
       res.json({ 
@@ -322,7 +512,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           username: user.username,
-          role: user.role
+          role: user.role,
+          tenantId: user.tenantId
         }
       });
     } catch (error) {
@@ -389,8 +580,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertRecommendationSchema.parse(req.body);
       const recommendation = await storage.createRecommendation(validatedData);
       
-      // Broadcast new recommendation to connected clients
-      broadcast({
+      // Broadcast new recommendation to connected clients in the same tenant
+      const tenantId = recommendation.tenantId || req.user?.tenantId || 'default-tenant';
+      broadcastToTenant(tenantId, {
         type: 'new_recommendation',
         data: recommendation
       });
@@ -454,8 +646,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Broadcast approval request to connected clients
-      broadcast({
+      // Broadcast approval request to connected clients in the same tenant
+      const tenantId = approvalRequest.tenantId || req.user?.tenantId || 'default-tenant';
+      broadcastToTenant(tenantId, {
         type: 'approval_request',
         data: approvalRequest
       });
@@ -490,12 +683,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (status === 'approved') {
         const recommendation = await storage.getRecommendation(updatedRequest.recommendationId);
         if (recommendation) {
+          const tenantId = recommendation.tenantId || req.user?.tenantId || 'default-tenant';
           try {
             await executeOptimization(recommendation);
             await storage.updateRecommendationStatus(recommendation.id, 'executed');
             
-            // Broadcast optimization execution
-            broadcast({
+            // Broadcast optimization execution to tenant
+            broadcastToTenant(tenantId, {
               type: 'optimization_executed',
               data: { recommendationId: recommendation.id, status: 'success' }
             });
@@ -503,7 +697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error("Error executing optimization:", error);
             await storage.updateRecommendationStatus(recommendation.id, 'failed');
             
-            broadcast({
+            broadcastToTenant(tenantId, {
               type: 'optimization_executed',
               data: { recommendationId: recommendation.id, status: 'failed', error: error instanceof Error ? error.message : String(error) }
             });
@@ -587,8 +781,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Broadcast bulk approval to connected clients  
-      broadcast({
+      // Broadcast bulk approval to connected clients in the same tenant
+      const tenantId = req.user?.tenantId || 'default-tenant';
+      broadcastToTenant(tenantId, {
         type: 'bulk_approval',
         data: { 
           approvedCount: approvedRecommendations.length,
@@ -616,7 +811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Optimization history endpoint
-  app.get("/api/optimization-history", async (req, res) => {
+  app.get("/api/optimization-history", authenticateToken, async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const history = await storage.getOptimizationHistory(limit);
@@ -628,7 +823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AWS resources endpoint
-  app.get("/api/aws-resources", async (req, res) => {
+  app.get("/api/aws-resources", authenticateToken, async (req, res) => {
     try {
       const resources = await storage.getAllAwsResources();
       res.json(resources);
@@ -769,8 +964,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await configService.setAutonomousMode(enabled, updatedBy || 'system');
       const agentConfig = await configService.getAgentConfig();
       
-      // Broadcast configuration change to connected clients
-      broadcast({
+      // Broadcast configuration change to connected clients in the same tenant
+      const tenantId = req.user?.tenantId || 'default-tenant';
+      broadcastToTenant(tenantId, {
         type: 'agent_config_updated',
         data: { autonomousMode: enabled, updatedBy }
       });
@@ -794,8 +990,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await configService.setProdMode(enabled, updatedBy || 'system');
       const agentConfig = await configService.getAgentConfig();
       
-      // Broadcast configuration change to connected clients
-      broadcast({
+      // Broadcast configuration change to connected clients in the same tenant
+      const tenantId = req.user?.tenantId || 'default-tenant';
+      broadcastToTenant(tenantId, {
         type: 'agent_config_updated',
         data: { prodMode: enabled, updatedBy }
       });
@@ -819,8 +1016,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await configService.setSimulationMode(enabled, updatedBy || 'system');
       const agentConfig = await configService.getAgentConfig();
       
-      // Broadcast configuration change to connected clients
-      broadcast({
+      // Broadcast configuration change to connected clients in the same tenant
+      const tenantId = req.user?.tenantId || 'default-tenant';
+      broadcastToTenant(tenantId, {
         type: 'agent_config_updated',
         data: { simulationMode: enabled, updatedBy }
       });

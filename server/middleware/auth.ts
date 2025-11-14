@@ -18,9 +18,26 @@ declare global {
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
 
-if (!JWT_SECRET) {
-  console.warn('WARNING: JWT_SECRET is not set. Authentication will not work properly.');
+// Validate JWT_SECRET at module load - fail fast if missing or too short
+if (!JWT_SECRET || JWT_SECRET.length === 0) {
+  throw new Error(
+    'CRITICAL SECURITY ERROR: JWT_SECRET environment variable is not set.\n' +
+    'Authentication cannot function without a secure JWT secret.\n' +
+    'Please set JWT_SECRET to a random string of at least 32 characters.\n' +
+    'Example: export JWT_SECRET=$(openssl rand -base64 32)'
+  );
 }
+
+if (JWT_SECRET.length < 32) {
+  throw new Error(
+    `CRITICAL SECURITY ERROR: JWT_SECRET is too short (${JWT_SECRET.length} characters).\n` +
+    'JWT_SECRET must be at least 32 characters for security.\n' +
+    'Please set JWT_SECRET to a random string of at least 32 characters.\n' +
+    'Example: export JWT_SECRET=$(openssl rand -base64 32)'
+  );
+}
+
+console.log('✓ JWT_SECRET validated successfully (length: ' + JWT_SECRET.length + ' characters)');
 
 export function authenticateToken(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers['authorization'];
