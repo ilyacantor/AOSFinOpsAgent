@@ -30,6 +30,7 @@ export default function ExecutiveDashboard() {
   const [environment, setEnvironment] = useState<Environment>("synthetic");
   const [selectedRegion, setSelectedRegion] = useState<string>("all");
   const [optimizationAdoption, setOptimizationAdoption] = useState([60]);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const { agentConfig, updateProdMode } = useAgentConfig();
   const { data: resources = [], error: resourcesError } = useQuery<any[]>({ 
@@ -110,11 +111,15 @@ export default function ExecutiveDashboard() {
           lastSync="Error"
           prodMode={agentConfig?.prodMode || false}
           onProdModeChange={updateProdMode}
+          onMenuClick={() => setIsMobileSidebarOpen(true)}
         />
         <div className="flex-1 flex pt-[60px]">
-          <Sidebar />
-          <main className="flex-1 overflow-hidden">
-            <div className="p-6 h-full overflow-y-auto">
+          <Sidebar 
+            isMobileOpen={isMobileSidebarOpen}
+            onClose={() => setIsMobileSidebarOpen(false)}
+          />
+          <main className="flex-1 overflow-hidden w-full">
+            <div className="p-4 sm:p-6 h-full overflow-y-auto">
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Error Loading Data</AlertTitle>
@@ -136,11 +141,15 @@ export default function ExecutiveDashboard() {
         lastSync="2 min ago"
         prodMode={agentConfig?.prodMode || false}
         onProdModeChange={updateProdMode}
+        onMenuClick={() => setIsMobileSidebarOpen(true)}
       />
       <div className="flex-1 flex pt-[60px]">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto bg-[#0A0E13] text-white p-6" data-testid="executive-dashboard">
+        <Sidebar 
+          isMobileOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
+        <main className="flex-1 overflow-hidden w-full">
+          <div className="h-full overflow-y-auto bg-[#0A0E13] text-white p-4 sm:p-6" data-testid="executive-dashboard">
             <div className="mb-6">
               <h1 className="text-3xl font-bold tracking-tight">Executive Dashboard</h1>
               <p className="text-gray-400 mt-1">
@@ -237,7 +246,7 @@ export default function ExecutiveDashboard() {
           <OptimizationMix />
 
           {/* AWS Spend Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-spend-breakdown">
               <CardHeader>
                 <CardTitle className="text-[#0BCAD9]">AWS Spend Breakdown</CardTitle>
@@ -265,7 +274,7 @@ export default function ExecutiveDashboard() {
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="grid grid-cols-2 gap-2 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 min-w-0">
                   {spendBreakdown.map((item) => (
                     <div key={item.name} className="flex items-center gap-2 text-sm">
                       <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.color }} />
@@ -332,7 +341,7 @@ export default function ExecutiveDashboard() {
 
         {/* OPTIMIZATION TAB */}
         <TabsContent value="optimization" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-top-recommendations">
               <CardHeader>
                 <CardTitle className="text-[#0BCAD9]">Top Optimization Opportunities</CardTitle>
@@ -401,7 +410,7 @@ export default function ExecutiveDashboard() {
 
         {/* GOVERNANCE TAB */}
         <TabsContent value="governance" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
             <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-policy-status">
               <CardHeader>
                 <CardTitle className="text-[#0BCAD9]">Policy Compliance</CardTitle>

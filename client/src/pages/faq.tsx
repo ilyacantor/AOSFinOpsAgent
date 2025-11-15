@@ -9,10 +9,11 @@ import {
 } from "@/components/ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HelpCircle } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function FAQ() {
   const { agentConfig, updateProdMode } = useAgentConfig();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     document.title = "FAQ - FinOps Autopilot | Frequently Asked Questions";
@@ -37,11 +38,15 @@ export default function FAQ() {
         lastSync="Just now"
         prodMode={agentConfig?.prodMode || false}
         onProdModeChange={updateProdMode}
+        onMenuClick={() => setIsMobileSidebarOpen(true)}
       />
       <div className="flex-1 flex pt-[60px]">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden">
-          <div className="p-6 h-full overflow-y-auto">
+        <Sidebar 
+          isMobileOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
+        <main className="flex-1 overflow-hidden w-full">
+          <div className="p-4 sm:p-6 h-full overflow-y-auto">
             <div className="max-w-4xl mx-auto">
               <div className="flex items-center gap-3 mb-6">
                 <HelpCircle className="w-8 h-8 text-primary" />

@@ -21,7 +21,7 @@ export function MetricsCards() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
         {Array.from({ length: 5 }).map((_, i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-6">
@@ -35,7 +35,7 @@ export function MetricsCards() {
 
   if (!metrics) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
         <Card>
           <CardContent className="p-6 text-center text-muted-foreground">
             No metrics available
@@ -60,7 +60,7 @@ export function MetricsCards() {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
       <Card className="hover:shadow-lg transition-all duration-200 hover:-translate-y-1" data-testid="card-monthly-spend">
         <CardContent className="p-6">
           <div className="flex flex-col justify-center">

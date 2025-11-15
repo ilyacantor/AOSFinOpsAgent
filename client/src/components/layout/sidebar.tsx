@@ -1,7 +1,13 @@
-import { Activity, Bot, ChartLine, Cog, Shield, Lightbulb, BarChart3, Presentation, HelpCircle } from "lucide-react";
+import { Activity, Bot, ChartLine, Cog, Shield, Lightbulb, BarChart3, Presentation, HelpCircle, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
 
-export function Sidebar() {
+interface SidebarProps {
+  isMobileOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
   const [location] = useLocation();
   
   const isActive = (path: string) => location === path;
@@ -18,9 +24,45 @@ export function Sidebar() {
   
   const isAdmin = getUserRole() === 'admin';
   
+  const handleLinkClick = () => {
+    if (onClose) {
+      onClose();
+    }
+  };
+  
   return (
-    <aside className="w-64 bg-card border-r border-border flex-shrink-0">
-      <nav className="px-4 pt-4 pb-4">
+    <>
+      {/* Mobile backdrop */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+          data-testid="sidebar-backdrop"
+        />
+      )}
+      
+      {/* Sidebar */}
+      <aside 
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex-shrink-0 
+          transition-transform duration-300 ease-in-out
+          ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+        data-testid="sidebar"
+      >
+        {/* Mobile close button */}
+        <div className="lg:hidden flex justify-end p-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            data-testid="button-close-sidebar"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+        
+        <nav className="px-4 pt-0 lg:pt-4 pb-4">
         {/* Executive Section */}
         <div className="mb-6">
           <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -29,7 +71,8 @@ export function Sidebar() {
           <ul className="space-y-2">
             <li>
               <Link 
-                href="/executive" 
+                href="/executive"
+                onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive('/executive') 
                     ? 'bg-primary text-primary-foreground shadow-sm' 
@@ -52,7 +95,8 @@ export function Sidebar() {
           <ul className="space-y-2">
             <li>
               <Link 
-                href="/" 
+                href="/"
+                onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive('/') 
                     ? 'bg-primary text-primary-foreground shadow-sm' 
@@ -66,7 +110,8 @@ export function Sidebar() {
             </li>
             <li>
               <Link 
-                href="/cost-analysis" 
+                href="/cost-analysis"
+                onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive('/cost-analysis') 
                     ? 'bg-primary text-primary-foreground shadow-sm' 
@@ -80,7 +125,8 @@ export function Sidebar() {
             </li>
             <li>
               <Link 
-                href="/recommendations" 
+                href="/recommendations"
+                onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive('/recommendations') 
                     ? 'bg-primary text-primary-foreground shadow-sm' 
@@ -103,7 +149,8 @@ export function Sidebar() {
           <ul className="space-y-2">
             <li>
               <Link 
-                href="/automation" 
+                href="/automation"
+                onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive('/automation') 
                     ? 'bg-primary text-primary-foreground shadow-sm' 
@@ -117,7 +164,8 @@ export function Sidebar() {
             </li>
             <li>
               <Link 
-                href="/governance" 
+                href="/governance"
+                onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive('/governance') 
                     ? 'bg-primary text-primary-foreground shadow-sm' 
@@ -141,7 +189,8 @@ export function Sidebar() {
             <ul className="space-y-2">
               <li>
                 <Link 
-                  href="/agent-config" 
+                  href="/agent-config"
+                  onClick={handleLinkClick}
                   className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive('/agent-config') 
                       ? 'bg-primary text-primary-foreground shadow-sm' 
@@ -165,7 +214,8 @@ export function Sidebar() {
           <ul className="space-y-2">
             <li>
               <Link 
-                href="/faq" 
+                href="/faq"
+                onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive('/faq') 
                     ? 'bg-primary text-primary-foreground shadow-sm' 
@@ -205,5 +255,6 @@ export function Sidebar() {
         </div>
       </nav>
     </aside>
+    </>
   );
 }

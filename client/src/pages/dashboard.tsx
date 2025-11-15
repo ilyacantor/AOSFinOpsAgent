@@ -9,7 +9,7 @@ import { ApprovalModal } from "@/components/modals/approval-modal";
 import { DataFlowVisualization } from "@/components/data-flow-viz";
 import { OptimizationMix } from "@/components/dashboard/optimization-mix";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const { agentConfig, updateProdMode } = useAgentConfig();
   const { lastMessage } = useWebSocket();
   const { toast } = useToast();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (lastMessage) {
@@ -49,12 +50,16 @@ export default function Dashboard() {
         lastSync="Just now"
         prodMode={agentConfig?.prodMode || false}
         onProdModeChange={updateProdMode}
+        onMenuClick={() => setIsMobileSidebarOpen(true)}
       />
       <div className="flex-1 flex pt-[60px]">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden">
+        <Sidebar 
+          isMobileOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
+        <main className="flex-1 overflow-hidden w-full">
         
-        <div className="p-6 h-full overflow-y-auto">
+        <div className="p-4 sm:p-6 h-full overflow-y-auto">
           {/* Data Flow Visualization with integrated metrics */}
           <DataFlowVisualization />
           
@@ -68,7 +73,7 @@ export default function Dashboard() {
             <RecommendationsPanel />
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8 mt-8">
             <ActivityFeed />
             <ResourceMonitor />
           </div>

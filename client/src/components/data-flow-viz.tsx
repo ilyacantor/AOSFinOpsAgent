@@ -50,7 +50,7 @@ export function DataFlowVisualization() {
 
       <div className="relative">
         {/* Flow Diagram */}
-        <div className="grid grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
           {/* Input Sources */}
           <div className="space-y-3">
             <div className="text-xs font-semibold text-primary mb-3" data-testid="text-input-label">INPUT SOURCES</div>
@@ -220,7 +220,7 @@ export function DataFlowVisualization() {
       {/* Key Metrics Footer */}
       <div className="mt-6 pt-4 border-t border-border space-y-6">
         {/* Financial Metrics */}
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           <div data-testid="metric-monthly-spend" className="text-center">
             <div className="text-sm font-medium text-muted-foreground mb-1">Monthly AWS Spend</div>
             <div className="text-2xl font-bold text-primary" data-testid="monthly-spend-value">
@@ -259,7 +259,7 @@ export function DataFlowVisualization() {
         </div>
         
         {/* Pipeline Operations Stats */}
-        <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-border">
           <div data-testid="stat-input-count" className="text-center">
             <div className="text-lg font-bold text-chart-1">{totalResources}</div>
             <div className="text-xs text-muted-foreground">Resources Monitored</div>

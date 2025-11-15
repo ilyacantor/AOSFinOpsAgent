@@ -28,7 +28,8 @@ export default function AgentConfig() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [localConfig, setLocalConfig] = useState<AgentConfig | null>(null);
-  const { agentConfig: hookConfig, updateProdMode: hookUpdateProdMode, updateSimulationMode: hookUpdateSimulationMode } = useAgentConfigHook();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const { agentConfig: hookConfig, updateProdMode: hookUpdateProdMode } = useAgentConfigHook();
 
   // Fetch current agent configuration
   const { data: agentConfig, isLoading, error } = useQuery<AgentConfig>({
@@ -184,14 +185,16 @@ export default function AgentConfig() {
         <TopNav 
           lastSync="Error"
           prodMode={false}
-          syntheticData={false}
           onProdModeChange={() => {}}
-          onSyntheticDataChange={() => {}}
+          onMenuClick={() => setIsMobileSidebarOpen(true)}
         />
         <div className="flex-1 flex pt-[60px]">
-          <Sidebar />
-          <main className="flex-1 overflow-hidden">
-            <div className="p-6 h-full overflow-y-auto">
+          <Sidebar 
+            isMobileOpen={isMobileSidebarOpen}
+            onClose={() => setIsMobileSidebarOpen(false)}
+          />
+          <main className="flex-1 overflow-hidden w-full">
+            <div className="p-4 sm:p-6 h-full overflow-y-auto">
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Access Denied</AlertTitle>
@@ -213,14 +216,16 @@ export default function AgentConfig() {
         <TopNav 
           lastSync="Loading..."
           prodMode={false}
-          syntheticData={false}
           onProdModeChange={() => {}}
-          onSyntheticDataChange={() => {}}
+          onMenuClick={() => setIsMobileSidebarOpen(true)}
         />
         <div className="flex-1 flex pt-[60px]">
-          <Sidebar />
-          <main className="flex-1 overflow-hidden">
-            <div className="p-6 h-full overflow-y-auto">
+          <Sidebar 
+            isMobileOpen={isMobileSidebarOpen}
+            onClose={() => setIsMobileSidebarOpen(false)}
+          />
+          <main className="flex-1 overflow-hidden w-full">
+            <div className="p-4 sm:p-6 h-full overflow-y-auto">
               <div>
                 <h1 className="text-3xl font-bold">Agent Configuration</h1>
                 <p className="text-muted-foreground">Loading configuration...</p>
@@ -237,14 +242,16 @@ export default function AgentConfig() {
       <TopNav 
         lastSync="1 min ago"
         prodMode={hookConfig?.prodMode || false}
-        syntheticData={hookConfig?.simulationMode || false}
         onProdModeChange={hookUpdateProdMode}
-        onSyntheticDataChange={hookUpdateSimulationMode}
+        onMenuClick={() => setIsMobileSidebarOpen(true)}
       />
       <div className="flex-1 flex pt-[60px]">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto p-6 space-y-6">
+        <Sidebar 
+          isMobileOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
+        <main className="flex-1 overflow-hidden w-full">
+          <div className="h-full overflow-y-auto p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Bot className="h-8 w-8" />

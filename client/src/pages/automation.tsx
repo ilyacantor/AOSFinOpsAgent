@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Cog, PlayCircle, PauseCircle, Clock, CheckCircle } from "lucide-react";
+import { useState } from "react";
 
 export default function Automation() {
-  const { agentConfig, updateProdMode, updateSimulationMode } = useAgentConfig();
+  const { agentConfig, updateProdMode } = useAgentConfig();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const automationRules = [
     {
       id: 1,
@@ -53,15 +55,17 @@ export default function Automation() {
       <TopNav 
         lastSync="5 min ago"
         prodMode={agentConfig?.prodMode || false}
-        syntheticData={agentConfig?.simulationMode || false}
         onProdModeChange={updateProdMode}
-        onSyntheticDataChange={updateSimulationMode}
+        onMenuClick={() => setIsMobileSidebarOpen(true)}
       />
       <div className="flex-1 flex pt-[60px]">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden">
+        <Sidebar 
+          isMobileOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
+        <main className="flex-1 overflow-hidden w-full">
         
-        <div className="p-6 h-full overflow-y-auto">
+        <div className="p-4 sm:p-6 h-full overflow-y-auto">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Automation</h1>

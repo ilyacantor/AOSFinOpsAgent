@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Shield, AlertTriangle, CheckCircle, Users, DollarSign } from "lucide-react";
+import { useState } from "react";
 
 export default function Governance() {
-  const { agentConfig, updateProdMode, updateSimulationMode } = useAgentConfig();
+  const { agentConfig, updateProdMode } = useAgentConfig();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const policies = [
     {
       id: 1,
@@ -68,14 +70,16 @@ export default function Governance() {
       <TopNav 
         lastSync="3 min ago"
         prodMode={agentConfig?.prodMode || false}
-        syntheticData={agentConfig?.simulationMode || false}
         onProdModeChange={updateProdMode}
-        onSyntheticDataChange={updateSimulationMode}
+        onMenuClick={() => setIsMobileSidebarOpen(true)}
       />
       <div className="flex-1 flex pt-[60px]">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden">
-          <div className="p-6 h-full overflow-y-auto">
+        <Sidebar 
+          isMobileOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
+        <main className="flex-1 overflow-hidden w-full">
+          <div className="p-4 sm:p-6 h-full overflow-y-auto">
             <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Governance & Compliance</h1>
