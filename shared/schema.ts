@@ -63,7 +63,7 @@ export const tenants = pgTable("tenants", {
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().default("user"),
@@ -74,7 +74,7 @@ export const users = pgTable("users", {
 
 export const awsResources = pgTable("aws_resources", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   resourceId: text("resource_id").notNull().unique(),
   resourceType: text("resource_type").notNull(), // EC2, RDS, Redshift, S3, etc.
   region: text("region").notNull(),
@@ -89,7 +89,7 @@ export const awsResources = pgTable("aws_resources", {
 
 export const costReports = pgTable("cost_reports", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   reportDate: timestamp("report_date").notNull(),
   serviceCategory: text("service_category").notNull(),
   resourceId: text("resource_id"),
@@ -104,7 +104,7 @@ export const costReports = pgTable("cost_reports", {
 
 export const recommendations = pgTable("recommendations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   resourceId: text("resource_id").notNull(),
   type: text("type").notNull(), // resize, terminate, storage-class, reserved-instance
   priority: text("priority").notNull(), // critical, high, medium, low
@@ -125,7 +125,7 @@ export const recommendations = pgTable("recommendations", {
 
 export const optimizationHistory = pgTable("optimization_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   recommendationId: varchar("recommendation_id").notNull(),
   executedBy: varchar("executed_by").notNull(),
   executionDate: timestamp("execution_date").notNull(),
@@ -142,7 +142,7 @@ export const optimizationHistory = pgTable("optimization_history", {
 
 export const approvalRequests = pgTable("approval_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   recommendationId: varchar("recommendation_id").notNull(),
   requestedBy: varchar("requested_by").notNull(),
   approverRole: text("approver_role").notNull(),
@@ -158,7 +158,7 @@ export const approvalRequests = pgTable("approval_requests", {
 
 export const systemConfig = pgTable("system_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   key: text("key").notNull().unique(),
   value: text("value").notNull(),
   description: text("description"),
@@ -171,7 +171,7 @@ export const systemConfig = pgTable("system_config", {
 
 export const historicalCostSnapshots = pgTable("historical_cost_snapshots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   snapshotDate: timestamp("snapshot_date").notNull(),
   totalMonthlyCost: bigint("total_monthly_cost", { mode: "number" }).notNull(),
   computeCost: bigint("compute_cost", { mode: "number" }).notNull(),
@@ -188,7 +188,7 @@ export const historicalCostSnapshots = pgTable("historical_cost_snapshots", {
 
 export const aiModeHistory = pgTable("ai_mode_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id"),
+  tenantId: varchar("tenant_id").notNull().default('default-tenant'),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time"),
   status: text("status").notNull(), // running, success, failed

@@ -8,41 +8,39 @@ import { ResourceMonitor } from "@/components/dashboard/resource-monitor";
 import { ApprovalModal } from "@/components/modals/approval-modal";
 import { DataFlowVisualization } from "@/components/data-flow-viz";
 import { OptimizationMix } from "@/components/dashboard/optimization-mix";
-// Temporarily disable WebSocket due to React hook error
-// import { useWebSocket } from "@/hooks/use-websocket";
-// import { useEffect } from "react";
-// import { useToast } from "@/hooks/use-toast";
-// import { queryClient } from "@/lib/queryClient";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 export default function Dashboard() {
   const { agentConfig, updateProdMode } = useAgentConfig();
-  // Temporarily disabled WebSocket functionality to fix navigation
-  // const { lastMessage } = useWebSocket();
-  // const { toast } = useToast();
+  const { lastMessage } = useWebSocket();
+  const { toast } = useToast();
 
-  // useEffect(() => {
-  //   if (lastMessage) {
-  //     // Handle real-time updates
-  //     switch (lastMessage.type) {
-  //       case 'new_recommendation':
-  //         toast({
-  //           title: "New Optimization Opportunity",
-  //           description: `${lastMessage.data.title} - Potential savings: $${Number(lastMessage.data.projectedAnnualSavings).toLocaleString()}/year`,
-  //         });
-  //         queryClient.invalidateQueries({ queryKey: ['/api/recommendations'] });
-  //         break;
-  //       case 'optimization_executed':
-  //         toast({
-  //           title: lastMessage.data.status === 'success' ? "Optimization Completed" : "Optimization Failed",
-  //           description: lastMessage.data.status === 'success' ? "Resource optimization executed successfully" : lastMessage.data.error,
-  //           variant: lastMessage.data.status === 'success' ? "default" : "destructive",
-  //         });
-  //         queryClient.invalidateQueries({ queryKey: ['/api/optimization-history'] });
-  //         queryClient.invalidateQueries({ queryKey: ['/api/dashboard/metrics'] });
-  //         break;
-  //     }
-  //   }
-  // }, [lastMessage, toast]);
+  useEffect(() => {
+    if (lastMessage) {
+      // Handle real-time updates
+      switch (lastMessage.type) {
+        case 'new_recommendation':
+          toast({
+            title: "New Optimization Opportunity",
+            description: `${lastMessage.data.title} - Potential savings: $${Number(lastMessage.data.projectedAnnualSavings).toLocaleString()}/year`,
+          });
+          queryClient.invalidateQueries({ queryKey: ['/api/recommendations'] });
+          break;
+        case 'optimization_executed':
+          toast({
+            title: lastMessage.data.status === 'success' ? "Optimization Completed" : "Optimization Failed",
+            description: lastMessage.data.status === 'success' ? "Resource optimization executed successfully" : lastMessage.data.error,
+            variant: lastMessage.data.status === 'success' ? "default" : "destructive",
+          });
+          queryClient.invalidateQueries({ queryKey: ['/api/optimization-history'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/dashboard/metrics'] });
+          break;
+      }
+    }
+  }, [lastMessage, toast]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
