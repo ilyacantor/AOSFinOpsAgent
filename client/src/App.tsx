@@ -19,17 +19,63 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Auth}/>
-      <AuthGuard>
-        <Route path="/" component={Dashboard}/>
-        <Route path="/executive" component={ExecutiveDashboard}/>
-        <Route path="/cost-analysis" component={CostAnalysis}/>
-        <Route path="/recommendations" component={Recommendations}/>
-        <Route path="/automation" component={Automation}/>
-        <Route path="/governance" component={Governance}/>
-        <Route path="/agent-config" component={AgentConfig}/>
-        <Route path="/faq" component={FAQ}/>
-        <Route component={NotFound} />
-      </AuthGuard>
+      <Route path="/">
+        {() => (
+          <AuthGuard>
+            <Dashboard />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route path="/executive">
+        {() => (
+          <AuthGuard>
+            <ExecutiveDashboard />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route path="/cost-analysis">
+        {() => (
+          <AuthGuard>
+            <CostAnalysis />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route path="/recommendations">
+        {() => (
+          <AuthGuard>
+            <Recommendations />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route path="/automation">
+        {() => (
+          <AuthGuard>
+            <Automation />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route path="/governance">
+        {() => (
+          <AuthGuard>
+            <Governance />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route path="/agent-config">
+        {() => (
+          <AuthGuard>
+            <AgentConfig />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route path="/faq">
+        {() => (
+          <AuthGuard>
+            <FAQ />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route component={NotFound} />
     </Switch>
   );
 }
