@@ -6,6 +6,9 @@ import { configService } from './config';
 import { geminiAI } from './gemini-ai';
 import { syntheticDataGenerator } from './synthetic-data';
 
+// Scheduler is a system service that operates in the default tenant context
+const SYSTEM_TENANT_ID = 'default-tenant';
+
 export class SchedulerService {
   private continuousSimulationInterval: NodeJS.Timeout | null = null;
   private isSimulationRunning: boolean = false;
@@ -117,7 +120,7 @@ export class SchedulerService {
         
         if (analysis.recommendation) {
           // Check if we already have a pending recommendation for this resource
-          const existingRecommendations = await storage.getRecommendations('pending');
+          const existingRecommendations = await storage.getRecommendations(SYSTEM_TENANT_ID, 'pending');
           const hasExisting = existingRecommendations.some(r => r.resourceId === cluster.ClusterIdentifier);
           
           if (!hasExisting) {
@@ -140,7 +143,7 @@ export class SchedulerService {
               projectedMonthlySavings: Number(analysis.recommendation.projectedSavings.monthly),
               projectedAnnualSavings: Number(analysis.recommendation.projectedSavings.annual),
               riskLevel: analysis.recommendation.avgUtilization < 25 ? 5 : 10
-            }, 'default-tenant');
+            }, SYSTEM_TENANT_ID);
 
             // Check if we can execute autonomously
             const canExecuteAutonomously = await configService.canExecuteAutonomously({
@@ -153,7 +156,7 @@ export class SchedulerService {
               // Execute immediately in autonomous mode
               try {
                 await this.executeOptimization(recommendation);
-                await storage.updateRecommendationStatus(recommendation.id, 'executed');
+                await storage.updateRecommendationStatus(recommendation.id, 'executed', SYSTEM_TENANT_ID);
 
                 // Send Slack notification about autonomous execution
                 await sendOptimizationComplete({
@@ -165,7 +168,7 @@ export class SchedulerService {
 
                 console.log(`🤖 Autonomously executed recommendation: ${recommendation.title}`);
               } catch (error) {
-                await storage.updateRecommendationStatus(recommendation.id, 'failed');
+                await storage.updateRecommendationStatus(recommendation.id, 'failed', SYSTEM_TENANT_ID);
                 
                 // Create failed optimization history entry
                 await storage.createOptimizationHistory({
@@ -176,7 +179,7 @@ export class SchedulerService {
                   afterConfig: recommendation.recommendedConfig as any,
                   status: 'failed',
                   errorMessage: error instanceof Error ? error.message : String(error)
-                }, 'default-tenant');
+                }, SYSTEM_TENANT_ID);
 
                 // Send failure notification
                 await sendOptimizationComplete({
@@ -219,7 +222,7 @@ export class SchedulerService {
           monthlyCost: analysis.recommendation?.projectedSavings ? 
             (analysis.recommendation.projectedSavings.monthly * 2) : 
             undefined
-        }, 'default-tenant');
+        }, SYSTEM_TENANT_ID);
       }
     } catch (error) {
       console.error('Error analyzing AWS resources:', error);
@@ -250,11 +253,11 @@ export class SchedulerService {
         status: 'running',
         summary: 'AI-powered analysis with Gemini 2.5 Flash + Pinecone RAG',
         triggeredBy: 'user'
-      }, 'default-tenant');
+      }, SYSTEM_TENANT_ID);
       historyId = historyEntry.id;
       
       // Get all AWS resources from database
-      const allResources = await storage.getAllAwsResources();
+      const allResources = await storage.getAllAwsResources(SYSTEM_TENANT_ID);
       
       if (allResources.length === 0) {
         console.log('No resources found to analyze');
@@ -264,7 +267,7 @@ export class SchedulerService {
           summary: 'No resources found to analyze',
           recommendationsGenerated: 0,
           totalSavingsIdentified: 0
-        });
+        }, SYSTEM_TENANT_ID);
         return;
       }
 
@@ -277,12 +280,12 @@ export class SchedulerService {
       
       for (const aiRec of aiRecommendations) {
         // Check if we already have a pending recommendation for this resource
-        const existingRecommendations = await storage.getRecommendations('pending');
+        const existingRecommendations = await storage.getRecommendations(SYSTEM_TENANT_ID, 'pending');
         const hasExisting = existingRecommendations.some(r => r.resourceId === aiRec.resourceId);
         
         if (!hasExisting) {
           // Create new AI-powered recommendation
-          const recommendation = await storage.createRecommendation(aiRec, 'default-tenant');
+          const recommendation = await storage.createRecommendation(aiRec, SYSTEM_TENANT_ID);
           
           console.log(`✨ Created AI recommendation: ${recommendation.title}`);
 
@@ -297,7 +300,7 @@ export class SchedulerService {
             // Execute immediately in autonomous mode
             try {
               await this.executeOptimization(recommendation);
-              await storage.updateRecommendationStatus(recommendation.id, 'executed');
+              await storage.updateRecommendationStatus(recommendation.id, 'executed', SYSTEM_TENANT_ID);
 
               // Send Slack notification about autonomous execution
               await sendOptimizationComplete({
@@ -309,7 +312,7 @@ export class SchedulerService {
 
               console.log(`🤖 AI-powered autonomous execution: ${recommendation.title}`);
             } catch (error) {
-              await storage.updateRecommendationStatus(recommendation.id, 'failed');
+              await storage.updateRecommendationStatus(recommendation.id, 'failed', SYSTEM_TENANT_ID);
               
               // Create failed optimization history entry
               await storage.createOptimizationHistory({
@@ -320,7 +323,7 @@ export class SchedulerService {
                 afterConfig: recommendation.recommendedConfig as any,
                 status: 'failed',
                 errorMessage: error instanceof Error ? error.message : String(error)
-              }, 'default-tenant');
+              }, SYSTEM_TENANT_ID);
 
               console.error(`❌ AI autonomous execution failed for ${recommendation.id}:`, error);
             }
@@ -353,7 +356,7 @@ export class SchedulerService {
           summary: `AI analysis complete: ${aiRecommendations.length} recommendations generated`,
           recommendationsGenerated: aiRecommendations.length,
           totalSavingsIdentified: totalSavings
-        });
+        }, SYSTEM_TENANT_ID);
         console.log('🧠 AI history updated');
       }
       
@@ -367,7 +370,7 @@ export class SchedulerService {
           endTime: new Date(),
           status: 'failed',
           errorMessage: error instanceof Error ? error.message : String(error)
-        });
+        }, SYSTEM_TENANT_ID);
       }
     }
   }
@@ -401,7 +404,7 @@ export class SchedulerService {
               usage: usage.toString(),
               usageType: group.Metrics?.UsageQuantity?.Unit || 'Unknown',
               region: 'us-east-1' // Default region
-            }, 'default-tenant');
+            }, SYSTEM_TENANT_ID);
           }
         }
       }
@@ -444,7 +447,7 @@ export class SchedulerService {
       }
       
       // Get all resources from database
-      const resources = await storage.getAllAwsResources();
+      const resources = await storage.getAllAwsResources(SYSTEM_TENANT_ID);
       
       if (resources.length === 0) {
         return;
@@ -485,7 +488,7 @@ export class SchedulerService {
       
       for (const resource of selectedResources) {
         // Check if we already have a pending recommendation for this resource
-        const existingRecommendations = await storage.getRecommendations();
+        const existingRecommendations = await storage.getRecommendations(SYSTEM_TENANT_ID);
         const hasExisting = existingRecommendations.some(
           r => r.resourceId === resource.resourceId && (r.status === 'pending' || r.status === 'approved')
         );
@@ -524,7 +527,7 @@ export class SchedulerService {
           projectedAnnualSavings: annualSavings,
           riskLevel: riskLevel === 'low' ? 3 : (riskLevel === 'medium' ? 7 : 9),
           executionMode: executionMode
-        }, 'default-tenant');
+        }, SYSTEM_TENANT_ID);
         
         newRecommendationsCount++;
         totalSavings += annualSavings;
@@ -540,13 +543,13 @@ export class SchedulerService {
         if (executionMode === 'autonomous') {
           try {
             await this.executeSyntheticOptimization(recommendation);
-            await storage.updateRecommendationStatus(recommendation.id, 'executed');
+            await storage.updateRecommendationStatus(recommendation.id, 'executed', SYSTEM_TENANT_ID);
             autoOptimizedCount++;
             
             console.log(`✅ Auto-executed: ${recommendation.title} (autonomous)`);
           } catch (error) {
             console.error(`❌ Auto-execution failed for ${recommendation.id}:`, error);
-            await storage.updateRecommendationStatus(recommendation.id, 'failed');
+            await storage.updateRecommendationStatus(recommendation.id, 'failed', SYSTEM_TENANT_ID);
           }
         }
       }
@@ -635,7 +638,7 @@ export class SchedulerService {
         afterConfig: recommendation.recommendedConfig,
         actualSavings: recommendation.projectedMonthlySavings,
         status: 'success'
-      }, 'default-tenant');
+      }, SYSTEM_TENANT_ID);
     } catch (error) {
       // Record failed optimization
       await storage.createOptimizationHistory({
@@ -646,7 +649,7 @@ export class SchedulerService {
         afterConfig: recommendation.recommendedConfig,
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : String(error)
-      }, 'default-tenant');
+      }, SYSTEM_TENANT_ID);
       
       throw error;
     }
@@ -674,7 +677,7 @@ export class SchedulerService {
           afterConfig: recommendation.recommendedConfig,
           actualSavings: recommendation.projectedMonthlySavings,
           status: 'success'
-        }, 'default-tenant');
+        }, SYSTEM_TENANT_ID);
       }
       
       return result;
@@ -688,7 +691,7 @@ export class SchedulerService {
         afterConfig: recommendation.recommendedConfig,
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : String(error)
-      }, 'default-tenant');
+      }, SYSTEM_TENANT_ID);
 
       throw error;
     }

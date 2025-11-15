@@ -1,6 +1,9 @@
 import { nanoid } from 'nanoid';
 import type { IStorage } from '../storage.js';
 
+// Data generator is a system service that operates in the default tenant context
+const SYSTEM_TENANT_ID = 'default-tenant';
+
 export class DataGenerator {
   private storage: IStorage;
 
@@ -241,7 +244,7 @@ export class DataGenerator {
       const created = await this.storage.createAwsResource({
         ...resource,
         lastAnalyzed: new Date()
-      }, 'default-tenant');
+      }, SYSTEM_TENANT_ID);
       resources.push(created);
     }
 
@@ -273,7 +276,7 @@ export class DataGenerator {
           usage: this.generateUsageForService(service),
           usageType: this.getUsageTypeForService(service),
           region: ['us-east-1', 'us-west-2', 'eu-west-1'][Math.floor(Math.random() * 3)]
-        }, 'default-tenant');
+        }, SYSTEM_TENANT_ID);
       }
     }
   }
@@ -477,7 +480,7 @@ export class DataGenerator {
     // Store recommendations
     const createdRecommendations = [];
     for (const rec of recommendations) {
-      const created = await this.storage.createRecommendation(rec, 'default-tenant');
+      const created = await this.storage.createRecommendation(rec, SYSTEM_TENANT_ID);
       createdRecommendations.push(created);
     }
 
@@ -554,7 +557,7 @@ export class DataGenerator {
     ];
 
     for (const item of historyItems) {
-      await this.storage.createOptimizationHistory(item, 'default-tenant');
+      await this.storage.createOptimizationHistory(item, SYSTEM_TENANT_ID);
     }
   }
 

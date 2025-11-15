@@ -397,7 +397,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard metrics endpoint
   app.get("/api/dashboard/metrics", ...authenticated, async (req, res) => {
     try {
-      const metrics = await storage.getDashboardMetrics();
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const metrics = await storage.getDashboardMetrics(tenantId);
       res.json(metrics);
     } catch (error) {
       console.error("Error fetching dashboard metrics:", error);
@@ -408,7 +413,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cost trends endpoint
   app.get("/api/dashboard/cost-trends", ...authenticated, async (req, res) => {
     try {
-      const trends = await storage.getMonthlyCostSummary();
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const trends = await storage.getMonthlyCostSummary(tenantId);
       res.json(trends);
     } catch (error) {
       console.error("Error fetching cost trends:", error);
@@ -419,7 +429,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Metrics summary endpoint for autopilot
   app.get("/api/metrics/summary", ...authenticated, async (req, res) => {
     try {
-      const summary = await storage.getMetricsSummary();
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const summary = await storage.getMetricsSummary(tenantId);
       res.json(summary);
     } catch (error) {
       console.error("Error fetching metrics summary:", error);
@@ -430,7 +445,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Optimization mix endpoint (Autonomous vs HITL distribution)
   app.get("/api/metrics/optimization-mix", ...authenticated, async (req, res) => {
     try {
-      const mix = await storage.getOptimizationMix();
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const mix = await storage.getOptimizationMix(tenantId);
       res.json(mix);
     } catch (error) {
       console.error("Error fetching optimization mix:", error);
@@ -577,7 +597,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      const user = await storage.getUser(req.user.userId);
+      const tenantId = req.user.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const user = await storage.getUser(req.user.userId, tenantId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -596,8 +621,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Recommendations endpoints
   app.get("/api/recommendations", ...authenticated, async (req, res) => {
     try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
       const status = req.query.status as string | undefined;
-      const recommendations = await storage.getRecommendations(status);
+      const recommendations = await storage.getRecommendations(tenantId, status);
       res.json(recommendations);
     } catch (error) {
       console.error("Error fetching recommendations:", error);
@@ -607,7 +637,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/recommendations/:id", ...authenticated, async (req, res) => {
     try {
-      const recommendation = await storage.getRecommendation(req.params.id);
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const recommendation = await storage.getRecommendation(req.params.id, tenantId);
       if (!recommendation) {
         return res.status(404).json({ error: "Recommendation not found" });
       }
@@ -646,8 +681,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertApprovalRequestSchema.parse(req.body);
       console.log("Validated data:", validatedData);
       
+      // Extract tenantId from authenticated user - MUST validate BEFORE any storage calls
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
       // For high-impact recommendations, require admin or CFO role
-      const recommendation = await storage.getRecommendation(validatedData.recommendationId);
+      const recommendation = await storage.getRecommendation(validatedData.recommendationId, tenantId);
       if (recommendation && req.body.status === 'approved') {
         const userRole = req.user?.role;
         const highImpact = recommendation.projectedAnnualSavings > 100000000; // > $100k annual savings
@@ -660,9 +701,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
-      // Extract tenantId from authenticated user
-      const tenantId = req.user?.tenantId || 'default-tenant';
       
       // Create approval request with date handling
       const approvalRequestData = {
@@ -677,7 +715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If approved, update the recommendation status and create activity entry
       if (req.body.status === 'approved') {
         console.log("Updating recommendation status to approved for:", validatedData.recommendationId);
-        await storage.updateRecommendationStatus(validatedData.recommendationId, 'approved');
+        await storage.updateRecommendationStatus(validatedData.recommendationId, 'approved', tenantId);
         
         // Get the recommendation details for the activity entry
         if (recommendation) {
@@ -738,7 +776,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const tenantId = recommendation.tenantId || req.user?.tenantId || 'default-tenant';
         try {
           const execResult = await executeOptimization(recommendation);
-          await storage.updateRecommendationStatus(recommendation.id, 'executed');
+          await storage.updateRecommendationStatus(recommendation.id, 'executed', tenantId);
           
           await logAudit(req, {
             action: auditActions.EXECUTE,
@@ -758,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         } catch (error) {
           console.error("Error executing optimization:", error);
-          await storage.updateRecommendationStatus(recommendation.id, 'failed');
+          await storage.updateRecommendationStatus(recommendation.id, 'failed', tenantId);
           
           await logAudit(req, {
             action: auditActions.EXECUTE,
@@ -788,12 +826,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bulk approve all pending recommendations - Require admin or CFO role
   app.post("/api/approve-all-recommendations", ...authenticatedAdmin, auditMiddleware(auditActions.APPROVE, auditResourceTypes.OPTIMIZATION), async (req, res) => {
     try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
       console.log("Starting bulk approval of all pending recommendations");
       const approvedBy = req.user?.userId || 'current-user';
       const { comments } = req.body;
       
       // Get all pending recommendations
-      const allRecommendations = await storage.getRecommendations();
+      const allRecommendations = await storage.getRecommendations(tenantId);
       const pendingRecommendations = allRecommendations.filter(r => r.status === 'pending');
       
       if (pendingRecommendations.length === 0) {
@@ -812,8 +855,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process each pending recommendation
       for (const recommendation of pendingRecommendations) {
         try {
-          const tenantId = recommendation.tenantId || req.user?.tenantId || 'default-tenant';
-          
           // Create approval request with pending status first
           const approvalRequest = await storage.createApprovalRequest({
             recommendationId: recommendation.id,
@@ -934,7 +975,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Broadcast bulk approval to connected clients in the same tenant
-      const tenantId = req.user?.tenantId || 'default-tenant';
       broadcastToTenant(tenantId, {
         type: 'bulk_approval',
         data: { 
@@ -965,8 +1005,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Optimization history endpoint
   app.get("/api/optimization-history", ...authenticated, async (req, res) => {
     try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-      const history = await storage.getOptimizationHistory(limit);
+      const history = await storage.getOptimizationHistory(tenantId, limit);
       res.json(history);
     } catch (error) {
       console.error("Error fetching optimization history:", error);
@@ -977,7 +1022,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AWS resources endpoint
   app.get("/api/aws-resources", ...authenticated, async (req, res) => {
     try {
-      const resources = await storage.getAllAwsResources();
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const resources = await storage.getAllAwsResources(tenantId);
       res.json(resources);
     } catch (error) {
       console.error("Error fetching AWS resources:", error);
@@ -1043,7 +1093,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // System Configuration Routes - Require admin role
   app.get("/api/system-config", ...authenticatedAdmin, async (req, res) => {
     try {
-      const configs = await storage.getAllSystemConfig();
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const configs = await storage.getAllSystemConfig(tenantId);
       res.json(configs);
     } catch (error) {
       console.error("Error fetching system config:", error);
@@ -1053,7 +1108,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/system-config/:key", ...authenticatedAdmin, async (req, res) => {
     try {
-      const config = await storage.getSystemConfig(req.params.key);
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const config = await storage.getSystemConfig(req.params.key, tenantId);
       if (!config) {
         return res.status(404).json({ error: "Configuration not found" });
       }
@@ -1081,6 +1141,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/system-config/:key", ...authenticatedAdmin, auditMiddleware(auditActions.UPDATE, auditResourceTypes.SYSTEM_CONFIG, req => req.params.key), async (req, res) => {
     try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
       const { value, updatedBy } = req.body;
       
       // Basic validation for numeric values
@@ -1091,7 +1156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const config = await storage.updateSystemConfig(req.params.key, value, updatedBy || 'system');
+      const config = await storage.updateSystemConfig(req.params.key, value, updatedBy || 'system', tenantId);
       if (!config) {
         return res.status(404).json({ error: "Configuration not found" });
       }
@@ -1200,8 +1265,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Mode History routes
   app.get("/api/ai-mode-history", ...authenticatedAdmin, async (req, res) => {
     try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
       const limit = parseInt(req.query.limit as string) || 10;
-      const history = await storage.getRecentAiModeHistory(limit);
+      const history = await storage.getRecentAiModeHistory(limit, tenantId);
       res.json(history);
     } catch (error) {
       console.error("Error fetching AI mode history:", error);
