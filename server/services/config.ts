@@ -252,7 +252,7 @@ export class ConfigService {
     
     // Track expiration time when enabling prod mode
     if (enabled) {
-      this.prodModeExpiresAt = Date.now() + 30000; // 30 seconds from now
+      this.prodModeExpiresAt = Date.now() + (5 * 60 * 1000); // 5 minutes from now
     } else {
       this.prodModeExpiresAt = null;
     }

@@ -244,7 +244,7 @@ export class SchedulerService {
     const startTime = new Date();
     
     try {
-      console.log('⚡ Prod Mode (RAG) triggered – auto-revert 30s');
+      console.log('⚡ Prod Mode (RAG) triggered – auto-revert in 5 minutes');
       console.log('🤖 Starting AI-powered resource analysis with Gemini 2.5 Flash...');
       
       // Create AI mode history entry to track this run

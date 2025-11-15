@@ -480,17 +480,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await configService.setProdMode(true, 'user');
         prodModeActivationTime = Date.now();
 
-        // Schedule auto-revert after 30 seconds
+        // Schedule auto-revert after 5 minutes
         prodModeTimeout = setTimeout(async () => {
-          console.log('Auto-reverting Prod Mode to OFF after 30 seconds');
+          console.log('Auto-reverting Prod Mode to OFF after 5 minutes');
           await configService.setProdMode(false, 'system-auto-revert');
           prodModeTimeout = null;
           prodModeActivationTime = null;
-        }, 30000);
+        }, 5 * 60 * 1000);
 
         res.json({ 
           prodMode: true, 
-          timeRemaining: 30 
+          timeRemaining: 300 
         });
       } else {
         // Turn off prod mode immediately

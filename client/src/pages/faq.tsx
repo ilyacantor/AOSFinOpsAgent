@@ -84,7 +84,7 @@ export default function FAQ() {
                           <li>Uses advanced AI models to analyze resource utilization patterns</li>
                           <li>Leverages historical optimization data through RAG for context-aware recommendations</li>
                           <li>Generates more sophisticated and personalized cost optimization strategies</li>
-                          <li>Automatically reverts to Heuristic Mode after 30 seconds to manage AI costs</li>
+                          <li>Automatically reverts to Heuristic Mode after 5 minutes to manage AI costs</li>
                         </ul>
                         <p className="text-muted-foreground mt-3">
                           <strong>Note:</strong> Prod Mode has higher API costs due to AI model usage, which is why 
