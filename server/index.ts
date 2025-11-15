@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { loggingMiddleware } from "./middleware/logging";
 import { logger } from "./services/logger";
 import { configService } from "./services/config";
+import { SchedulerService } from "./services/scheduler";
 import { generalApiLimiter, authLimiter, writeLimiter, readLimiter } from "./middleware/rate-limit";
 import { developmentSecurityHeaders, productionSecurityHeaders } from "./middleware/security-headers";
 import { corsMiddleware } from "./middleware/cors";
@@ -111,6 +112,10 @@ app.use('/api/*', readLimiter);
     await configService.validateAndLoadConfig();
     await configService.initializeDefaults();
     logger.info('Application configuration initialized successfully');
+    
+    // Initialize scheduler service for demo mode simulation and background jobs
+    new SchedulerService();
+    logger.info('Scheduler service initialized successfully');
   } catch (error) {
     logger.error('Failed to initialize configuration', {}, error as Error);
     process.exit(1);
