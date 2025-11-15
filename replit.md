@@ -128,7 +128,7 @@ Preferred communication style: Simple, everyday language.
 - **Operations Dashboard**: Integrates metrics into a Data Flow Pipeline visualization, combining financial KPIs and operational telemetry. Auto-refreshes every 3 seconds.
 
 ### Performance Optimizations
-- **AI/RAG**: Gemini 2.5 Flash, Pinecone vector database for RAG, 5-minute TTL cache, Gemini text-embedding-004.
+- **AI/RAG**: Gemini 2.0 Flash, Pinecone vector database for RAG, 5-minute TTL cache, Gemini text-embedding-004.
 - **Continuous Simulation**: High-velocity demo mode (3-second cycles), random resource utilization adjustments, 10x monetary multiplier for enterprise scale.
 - **Heuristic Recommendation Engine**: Runs every 3 seconds, generates 2-5 recommendations (Rightsizing, scheduling, storage-tiering), 80% autonomous / 20% HITL risk distribution.
 - **HITL vs Autonomous Labeling**: Recommendations tagged with `executionMode` ("autonomous" or "hitl"), visual badges, and dashboard widget showing 80/20 execution split.
