@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AgentConfig {
   autonomousMode: boolean;
@@ -24,12 +25,7 @@ export function useAgentConfig() {
   // Mutation to update prod mode using new auto-revert endpoint
   const updateProdMode = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const response = await fetch('/api/mode/prod', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled })
-      });
-      if (!response.ok) throw new Error('Failed to update prod mode');
+      const response = await apiRequest('POST', '/api/mode/prod', { enabled });
       return response.json();
     },
     onSuccess: (data) => {
