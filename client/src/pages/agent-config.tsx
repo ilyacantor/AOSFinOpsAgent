@@ -14,6 +14,7 @@ import { formatCurrencyK } from "@/lib/currency";
 import { TopNav } from "@/components/layout/top-nav";
 import { useAgentConfig as useAgentConfigHook } from "@/hooks/use-agent-config";
 import { Sidebar } from "@/components/layout/sidebar";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AgentConfig {
   autonomousMode: boolean;
@@ -48,12 +49,9 @@ export default function AgentConfig() {
   // Mutation to update autonomous mode
   const updateAutonomousMode = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const response = await fetch('/api/agent-config/autonomous-mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, updatedBy: 'admin-user' })
-      });
-      if (!response.ok) throw new Error('Failed to update autonomous mode');
+      const response = await apiRequest('POST', '/api/agent-config/autonomous-mode', 
+        { enabled, updatedBy: 'admin-user' }
+      );
       return response.json();
     },
     onSuccess: (data) => {
@@ -75,12 +73,9 @@ export default function AgentConfig() {
   // Mutation to update prod mode
   const updateProdMode = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const response = await fetch('/api/agent-config/prod-mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, updatedBy: 'admin-user' })
-      });
-      if (!response.ok) throw new Error('Failed to update prod mode');
+      const response = await apiRequest('POST', '/api/agent-config/prod-mode',
+        { enabled, updatedBy: 'admin-user' }
+      );
       return response.json();
     },
     onSuccess: (data) => {
@@ -102,11 +97,7 @@ export default function AgentConfig() {
   // Mutation to trigger AI analysis manually
   const triggerAIAnalysis = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (!response.ok) throw new Error('Failed to trigger AI analysis');
+      const response = await apiRequest('POST', '/api/ai/analyze');
       
       // Handle 204 No Content response (no body to parse)
       if (response.status === 204) {
@@ -137,12 +128,9 @@ export default function AgentConfig() {
   // Mutation to update risk level
   const updateRiskLevel = useMutation({
     mutationFn: async (riskLevel: number) => {
-      const response = await fetch('/api/system-config/agent.max_autonomous_risk_level', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: riskLevel.toString(), updatedBy: 'admin-user' })
-      });
-      if (!response.ok) throw new Error('Failed to update risk level');
+      const response = await apiRequest('PUT', '/api/system-config/agent.max_autonomous_risk_level',
+        { value: riskLevel.toString(), updatedBy: 'admin-user' }
+      );
       return response.json();
     },
     onSuccess: () => {
@@ -170,12 +158,9 @@ export default function AgentConfig() {
   // Mutation to update simulation mode
   const updateSimulationMode = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const response = await fetch('/api/agent-config/simulation-mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, updatedBy: 'admin-user' })
-      });
-      if (!response.ok) throw new Error('Failed to update simulation mode');
+      const response = await apiRequest('POST', '/api/agent-config/simulation-mode',
+        { enabled, updatedBy: 'admin-user' }
+      );
       return response.json();
     },
     onSuccess: (data) => {
