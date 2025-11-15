@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Shield, Settings, AlertTriangle, Activity } from "lucide-react";
 import { formatCurrencyK } from "@/lib/currency";
@@ -31,9 +31,10 @@ export default function AgentConfig() {
   const { agentConfig: hookConfig, updateProdMode: hookUpdateProdMode, updateSimulationMode: hookUpdateSimulationMode } = useAgentConfigHook();
 
   // Fetch current agent configuration
-  const { data: agentConfig, isLoading } = useQuery<AgentConfig>({
+  const { data: agentConfig, isLoading, error } = useQuery<AgentConfig>({
     queryKey: ['/api/agent-config'],
     staleTime: 30000, // 30 seconds
+    retry: false, // Don't retry on 403 errors
   });
 
   // Update local state when data changes
@@ -176,6 +177,35 @@ export default function AgentConfig() {
       await updateRiskLevel.mutateAsync(riskLevel);
     }
   };
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <TopNav 
+          lastSync="Error"
+          prodMode={false}
+          syntheticData={false}
+          onProdModeChange={() => {}}
+          onSyntheticDataChange={() => {}}
+        />
+        <div className="flex-1 flex pt-[60px]">
+          <Sidebar />
+          <main className="flex-1 overflow-hidden">
+            <div className="p-6 h-full overflow-y-auto">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Access Denied</AlertTitle>
+                <AlertDescription>
+                  You don't have permission to access agent configuration. 
+                  This page requires administrator privileges.
+                </AlertDescription>
+              </Alert>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !localConfig) {
     return (

@@ -2,7 +2,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/top-nav";
 import { useAgentConfig } from "@/hooks/use-agent-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartLine, DollarSign, TrendingDown, TrendingUp } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ChartLine, DollarSign, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
 import { formatCurrencyK } from "@/lib/currency";
 import { useQuery } from "@tanstack/react-query";
 import type { AwsResource } from "@shared/schema";
@@ -22,19 +23,22 @@ interface CostTrend {
 
 export default function CostAnalysis() {
   const { agentConfig, updateProdMode, updateSimulationMode } = useAgentConfig();
-  const { data: metrics, isLoading: metricsLoading } = useQuery<DashboardMetrics>({
+  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery<DashboardMetrics>({
     queryKey: ['/api/dashboard/metrics'],
     refetchInterval: 60000,
+    retry: false,
   });
 
-  const { data: trends, isLoading: trendsLoading } = useQuery<CostTrend[]>({
+  const { data: trends, isLoading: trendsLoading, error: trendsError } = useQuery<CostTrend[]>({
     queryKey: ['/api/dashboard/cost-trends'],
     refetchInterval: 300000,
+    retry: false,
   });
 
-  const { data: resources, isLoading: resourcesLoading } = useQuery<AwsResource[]>({
+  const { data: resources, isLoading: resourcesLoading, error: resourcesError } = useQuery<AwsResource[]>({
     queryKey: ['/api/aws-resources'],
     refetchInterval: 300000,
+    retry: false,
   });
 
   // Calculate cost variance from trends
@@ -60,6 +64,35 @@ export default function CostAnalysis() {
     .slice(0, 5); // Top 5 services
 
   const isLoading = metricsLoading || trendsLoading || resourcesLoading;
+  const error = metricsError || trendsError || resourcesError;
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <TopNav 
+          lastSync="Error"
+          prodMode={agentConfig?.prodMode || false}
+          syntheticData={agentConfig?.simulationMode || false}
+          onProdModeChange={updateProdMode}
+          onSyntheticDataChange={updateSimulationMode}
+        />
+        <div className="flex-1 flex pt-[60px]">
+          <Sidebar />
+          <main className="flex-1 overflow-hidden">
+            <div className="p-6 h-full overflow-y-auto">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error Loading Data</AlertTitle>
+                <AlertDescription>
+                  {error instanceof Error ? error.message : 'Failed to load cost analysis data. Please try again.'}
+                </AlertDescription>
+              </Alert>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

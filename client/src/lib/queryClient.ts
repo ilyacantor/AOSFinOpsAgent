@@ -12,6 +12,21 @@ async function throwIfResNotOk(res: Response) {
       handleUnauthorized();
     }
     const text = (await res.text()) || res.statusText;
+    
+    // Provide user-friendly error messages for common status codes
+    if (res.status === 429) {
+      throw new Error('Rate limit exceeded. Please wait a moment before trying again.');
+    }
+    if (res.status === 403) {
+      throw new Error('Access denied. You do not have permission to access this resource.');
+    }
+    if (res.status === 404) {
+      throw new Error('Resource not found.');
+    }
+    if (res.status >= 500) {
+      throw new Error('Server error. Please try again later.');
+    }
+    
     throw new Error(`${res.status}: ${text}`);
   }
 }

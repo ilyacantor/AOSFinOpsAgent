@@ -7,6 +7,7 @@ import { AiModeIndicator } from "@/components/ai-mode-indicator";
 import { AiModeHistory } from "@/components/ai-mode-history";
 import { OptimizationMix } from "@/components/dashboard/optimization-mix";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,14 +32,24 @@ export default function ExecutiveDashboard() {
   const [optimizationAdoption, setOptimizationAdoption] = useState([60]);
 
   const { agentConfig, updateProdMode } = useAgentConfig();
-  const { data: resources = [] } = useQuery<any[]>({ queryKey: ["/api/aws-resources"] });
-  const { data: recommendations = [] } = useQuery<any[]>({ queryKey: ["/api/recommendations"] });
-  const { data: optimizationHistory = [] } = useQuery<any[]>({ queryKey: ["/api/optimization-history"] });
+  const { data: resources = [], error: resourcesError } = useQuery<any[]>({ 
+    queryKey: ["/api/aws-resources"],
+    retry: false 
+  });
+  const { data: recommendations = [], error: recommendationsError } = useQuery<any[]>({ 
+    queryKey: ["/api/recommendations"],
+    retry: false 
+  });
+  const { data: optimizationHistory = [], error: optimizationHistoryError } = useQuery<any[]>({ 
+    queryKey: ["/api/optimization-history"],
+    retry: false 
+  });
   
   // Use the new metrics summary endpoint with 3s refresh for real-time feel
-  const { data: metricsSummary } = useQuery<any>({ 
+  const { data: metricsSummary, error: metricsSummaryError } = useQuery<any>({ 
     queryKey: ["/api/metrics/summary"],
-    refetchInterval: 3000 
+    refetchInterval: 3000,
+    retry: false 
   });
 
   // Calculate metrics
@@ -88,6 +99,35 @@ export default function ExecutiveDashboard() {
     : 0;
 
   const underutilizedResources = resources.filter((r: any) => (r.utilizationMetrics?.cpuUtilization || 0) < 30);
+
+  const error = resourcesError || recommendationsError || optimizationHistoryError || metricsSummaryError;
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <AiModeIndicator />
+        <TopNav 
+          lastSync="Error"
+          prodMode={agentConfig?.prodMode || false}
+          onProdModeChange={updateProdMode}
+        />
+        <div className="flex-1 flex pt-[60px]">
+          <Sidebar />
+          <main className="flex-1 overflow-hidden">
+            <div className="p-6 h-full overflow-y-auto">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error Loading Data</AlertTitle>
+                <AlertDescription>
+                  {error instanceof Error ? error.message : 'Failed to load executive dashboard data. Please try again.'}
+                </AlertDescription>
+              </Alert>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">

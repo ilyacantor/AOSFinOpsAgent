@@ -42,11 +42,11 @@ const customRateLimitHandler = (req: Request, res: Response) => {
 };
 
 export const generalApiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // 300 requests per minute (allows ~5 req/sec sustained)
   message: {
     error: 'Too many requests from this IP',
-    message: 'Please try again after 15 minutes'
+    message: 'Please slow down and try again in a moment'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -85,11 +85,11 @@ export const writeLimiter = rateLimit({
 });
 
 export const readLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
+  windowMs: 60 * 1000, // 1 minute
+  max: 200, // 200 requests per minute (allows ~3 req/sec sustained)
   message: {
     error: 'Too many read operations',
-    message: 'Please try again after 15 minutes'
+    message: 'Please slow down and try again in a moment'
   },
   standardHeaders: true,
   legacyHeaders: false,
