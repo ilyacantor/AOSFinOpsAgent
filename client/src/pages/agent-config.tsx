@@ -99,6 +99,41 @@ export default function AgentConfig() {
     }
   });
 
+  // Mutation to trigger AI analysis manually
+  const triggerAIAnalysis = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) throw new Error('Failed to trigger AI analysis');
+      
+      // Handle 204 No Content response (no body to parse)
+      if (response.status === 204) {
+        return { success: true };
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "AI Analysis Started",
+        description: "AI-powered analysis with Gemini 2.5 Flash + RAG is running. New recommendations will appear shortly.",
+      });
+      // Invalidate queries to refresh recommendations when analysis completes
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/recommendations'] });
+      }, 5000);
+    },
+    onError: () => {
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to trigger AI analysis. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Mutation to update risk level
   const updateRiskLevel = useMutation({
     mutationFn: async (riskLevel: number) => {
@@ -299,13 +334,39 @@ export default function AgentConfig() {
           </div>
 
           {localConfig.prodMode && (
-            <Alert className="border-cyan-500/30 bg-cyan-950/10">
-              <Bot className="h-4 w-4 text-cyan-400" />
-              <AlertDescription>
-                <strong>AI Mode Active.</strong> Using Gemini 2.5 Flash with Retrieval Augmented Generation (RAG) 
-                to analyze resources based on historical optimization patterns and intelligent context analysis.
-              </AlertDescription>
-            </Alert>
+            <>
+              <Alert className="border-cyan-500/30 bg-cyan-950/10">
+                <Bot className="h-4 w-4 text-cyan-400" />
+                <AlertDescription>
+                  <strong>AI Mode Active.</strong> Using Gemini 2.5 Flash with Retrieval Augmented Generation (RAG) 
+                  to analyze resources based on historical optimization patterns and intelligent context analysis.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="pt-2">
+                <Button 
+                  onClick={() => triggerAIAnalysis.mutate()}
+                  disabled={triggerAIAnalysis.isPending}
+                  className="w-full sm:w-auto bg-cyan-500 hover:bg-cyan-600"
+                  data-testid="trigger-ai-analysis-button"
+                >
+                  {triggerAIAnalysis.isPending ? (
+                    <>
+                      <Bot className="mr-2 h-4 w-4 animate-spin" />
+                      Running AI Analysis...
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="mr-2 h-4 w-4" />
+                      Run AI Analysis Now
+                    </>
+                  )}
+                </Button>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Manually trigger AI-powered analysis. Normally runs automatically every 6 hours.
+                </p>
+              </div>
+            </>
           )}
 
           {!localConfig.prodMode && (
