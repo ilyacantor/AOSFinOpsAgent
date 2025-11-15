@@ -67,7 +67,7 @@ export function DataGeneratorCard() {
     onSuccess: () => {
       toast({
         title: "🤖 AI Analysis Started",
-        description: "Gemini 2.5 Flash is analyzing your resources. New recommendations will appear shortly.",
+        description: "Gemini 2.0 Flash is analyzing your resources. New recommendations will appear shortly.",
       });
       
       // Refresh recommendations after a delay
@@ -163,7 +163,7 @@ export function DataGeneratorCard() {
               ) : (
                 <Sparkles className="w-4 h-4 mr-2" />
               )}
-              {aiAnalysisMutation.isPending ? 'AI Analyzing...' : '🤖 Run AI Analysis (Gemini 2.5 Flash)'}
+              {aiAnalysisMutation.isPending ? 'AI Analyzing...' : '🤖 Run AI Analysis (Gemini 2.0 Flash)'}
             </Button>
           )}
         </div>

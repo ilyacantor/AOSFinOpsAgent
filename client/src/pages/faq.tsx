@@ -70,7 +70,7 @@ export default function FAQ() {
                           FinOps Autopilot is an intelligent cloud cost optimization platform that continuously monitors 
                           your AWS infrastructure, identifies cost-saving opportunities, and can automatically execute 
                           optimizations based on your configuration. It combines heuristic analysis with AI-powered 
-                          recommendations using Gemini 2.5 Flash and RAG (Retrieval-Augmented Generation) to provide 
+                          recommendations using Gemini 2.0 Flash and RAG (Retrieval-Augmented Generation) to provide 
                           context-aware cost optimization strategies.
                         </p>
                       </AccordionContent>
@@ -82,7 +82,7 @@ export default function FAQ() {
                       </AccordionTrigger>
                       <AccordionContent>
                         <p className="text-muted-foreground mb-3">
-                          Prod Mode enables AI-powered analysis using Gemini 2.5 Flash with RAG (Retrieval-Augmented 
+                          Prod Mode enables AI-powered analysis using Gemini 2.0 Flash with RAG (Retrieval-Augmented 
                           Generation). When enabled, the system:
                         </p>
                         <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">

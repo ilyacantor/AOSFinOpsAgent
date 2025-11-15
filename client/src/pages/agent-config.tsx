@@ -564,7 +564,7 @@ export default function AgentConfig() {
             <div>
               <p className="font-medium">Analysis Mode</p>
               <p className="text-muted-foreground">
-                {localConfig.prodMode ? "AI + RAG (Gemini 2.5 Flash)" : "Heuristics (Rule-based)"}
+                {localConfig.prodMode ? "AI + RAG (Gemini 2.0 Flash)" : "Heuristics (Rule-based)"}
               </p>
             </div>
             <div>
