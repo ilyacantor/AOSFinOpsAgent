@@ -319,7 +319,9 @@ export const aiModeHistoryRelations = relations(aiModeHistory, ({ one }) => ({
 
 // Insert schemas
 export const insertTenantSchema = createInsertSchema(tenants).omit({ id: true, createdAt: true });
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true }).extend({
+  tenantId: z.string().optional().default('default-tenant')
+});
 export const insertAwsResourceSchema = createInsertSchema(awsResources).omit({ id: true, createdAt: true });
 export const insertCostReportSchema = createInsertSchema(costReports).omit({ id: true, createdAt: true });
 export const insertRecommendationSchema = createInsertSchema(recommendations).omit({ id: true, createdAt: true, updatedAt: true });
