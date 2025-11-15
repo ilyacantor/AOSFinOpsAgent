@@ -33,44 +33,44 @@ export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  createUser(user: InsertUser, tenantId: string): Promise<User>;
 
   // AWS Resources
-  createAwsResource(resource: InsertAwsResource): Promise<AwsResource>;
+  createAwsResource(resource: InsertAwsResource, tenantId: string): Promise<AwsResource>;
   getAwsResource(resourceId: string): Promise<AwsResource | undefined>;
   updateAwsResource(resourceId: string, updates: Partial<InsertAwsResource>): Promise<AwsResource | undefined>;
   getAllAwsResources(): Promise<AwsResource[]>;
 
   // Cost Reports
-  createCostReport(report: InsertCostReport): Promise<CostReport>;
+  createCostReport(report: InsertCostReport, tenantId: string): Promise<CostReport>;
   getCostReports(dateFrom?: Date, dateTo?: Date): Promise<CostReport[]>;
   getMonthlyCostSummary(): Promise<{ month: string; totalCost: number; }[]>;
 
   // Recommendations
-  createRecommendation(recommendation: InsertRecommendation): Promise<Recommendation>;
+  createRecommendation(recommendation: InsertRecommendation, tenantId: string): Promise<Recommendation>;
   getRecommendations(status?: string): Promise<Recommendation[]>;
   getRecentRecommendations(limit: number): Promise<Recommendation[]>; // Optimized: fetch limited records
   getRecommendation(id: string): Promise<Recommendation | undefined>;
   updateRecommendationStatus(id: string, status: string): Promise<Recommendation | undefined>;
   
   // Optimization History
-  createOptimizationHistory(history: InsertOptimizationHistory): Promise<OptimizationHistory>;
+  createOptimizationHistory(history: InsertOptimizationHistory, tenantId: string): Promise<OptimizationHistory>;
   getOptimizationHistory(limit?: number): Promise<OptimizationHistory[]>;
   getRecentOptimizationHistory(limit: number): Promise<OptimizationHistory[]>; // Optimized: fetch limited records
 
   // Approval Requests
-  createApprovalRequest(request: InsertApprovalRequest): Promise<ApprovalRequest>;
+  createApprovalRequest(request: InsertApprovalRequest, tenantId: string): Promise<ApprovalRequest>;
   getApprovalRequests(status?: string): Promise<ApprovalRequest[]>;
   updateApprovalRequest(id: string, updates: Partial<InsertApprovalRequest>): Promise<ApprovalRequest | undefined>;
 
   // System Configuration
   getSystemConfig(key: string): Promise<SystemConfig | undefined>;
-  setSystemConfig(config: InsertSystemConfig): Promise<SystemConfig>;
+  setSystemConfig(config: InsertSystemConfig, tenantId: string): Promise<SystemConfig>;
   updateSystemConfig(key: string, value: string, updatedBy: string): Promise<SystemConfig | undefined>;
   getAllSystemConfig(): Promise<SystemConfig[]>;
 
   // AI Mode History
-  createAiModeHistory(history: InsertAiModeHistory): Promise<AiModeHistory>;
+  createAiModeHistory(history: InsertAiModeHistory, tenantId: string): Promise<AiModeHistory>;
   updateAiModeHistory(id: string, updates: Partial<InsertAiModeHistory>): Promise<AiModeHistory | undefined>;
   getRecentAiModeHistory(limit: number): Promise<AiModeHistory[]>;
   getAiModeHistory(id: string): Promise<AiModeHistory | undefined>;
@@ -115,19 +115,19 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createUser(insertUser: InsertUser, tenantId: string): Promise<User> {
     const hashedPassword = await hashPassword(insertUser.password);
     const [user] = await db
       .insert(users)
-      .values({ ...insertUser, password: hashedPassword })
+      .values({ ...insertUser, password: hashedPassword, tenantId })
       .returning();
     return user;
   }
 
-  async createAwsResource(resource: InsertAwsResource): Promise<AwsResource> {
+  async createAwsResource(resource: InsertAwsResource, tenantId: string): Promise<AwsResource> {
     const [created] = await db
       .insert(awsResources)
-      .values(resource)
+      .values({ ...resource, tenantId })
       .returning();
     return created;
   }
@@ -153,10 +153,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(awsResources);
   }
 
-  async createCostReport(report: InsertCostReport): Promise<CostReport> {
+  async createCostReport(report: InsertCostReport, tenantId: string): Promise<CostReport> {
     const [created] = await db
       .insert(costReports)
-      .values(report)
+      .values({ ...report, tenantId })
       .returning();
     return created;
   }
@@ -194,10 +194,10 @@ export class DatabaseStorage implements IStorage {
     return result.map(r => ({ month: r.month, totalCost: Number(r.totalCost) }));
   }
 
-  async createRecommendation(recommendation: InsertRecommendation): Promise<Recommendation> {
+  async createRecommendation(recommendation: InsertRecommendation, tenantId: string): Promise<Recommendation> {
     const [created] = await db
       .insert(recommendations)
-      .values(recommendation)
+      .values({ ...recommendation, tenantId })
       .returning();
     
     // Store in Pinecone for RAG (async, non-blocking) with circuit breaker protection
@@ -243,10 +243,10 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
-  async createOptimizationHistory(history: InsertOptimizationHistory): Promise<OptimizationHistory> {
+  async createOptimizationHistory(history: InsertOptimizationHistory, tenantId: string): Promise<OptimizationHistory> {
     const [created] = await db
       .insert(optimizationHistory)
-      .values(history)
+      .values({ ...history, tenantId })
       .returning();
     
     // Store in Pinecone for RAG (async, non-blocking) with circuit breaker protection
@@ -286,10 +286,10 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
-  async createApprovalRequest(request: InsertApprovalRequest & { approvalDate?: Date }): Promise<ApprovalRequest> {
+  async createApprovalRequest(request: InsertApprovalRequest & { approvalDate?: Date }, tenantId: string): Promise<ApprovalRequest> {
     const [created] = await db
       .insert(approvalRequests)
-      .values(request)
+      .values({ ...request, tenantId })
       .returning();
     return created;
   }
@@ -326,11 +326,11 @@ export class DatabaseStorage implements IStorage {
     return config || undefined;
   }
 
-  async setSystemConfig(config: InsertSystemConfig): Promise<SystemConfig> {
+  async setSystemConfig(config: InsertSystemConfig, tenantId: string): Promise<SystemConfig> {
     // Use upsert functionality - insert or update if key exists
     const [result] = await db
       .insert(systemConfig)
-      .values(config)
+      .values({ ...config, tenantId })
       .onConflictDoUpdate({
         target: systemConfig.key,
         set: {
@@ -360,10 +360,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(systemConfig.key);
   }
 
-  async createAiModeHistory(history: InsertAiModeHistory): Promise<AiModeHistory> {
+  async createAiModeHistory(history: InsertAiModeHistory, tenantId: string): Promise<AiModeHistory> {
     const [created] = await db
       .insert(aiModeHistory)
-      .values(history)
+      .values({ ...history, tenantId })
       .returning();
     return created;
   }

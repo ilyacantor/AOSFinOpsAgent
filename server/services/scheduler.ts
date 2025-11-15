@@ -140,7 +140,7 @@ export class SchedulerService {
               projectedMonthlySavings: Number(analysis.recommendation.projectedSavings.monthly),
               projectedAnnualSavings: Number(analysis.recommendation.projectedSavings.annual),
               riskLevel: analysis.recommendation.avgUtilization < 25 ? 5 : 10
-            });
+            }, 'default-tenant');
 
             // Check if we can execute autonomously
             const canExecuteAutonomously = await configService.canExecuteAutonomously({
@@ -176,7 +176,7 @@ export class SchedulerService {
                   afterConfig: recommendation.recommendedConfig as any,
                   status: 'failed',
                   errorMessage: error instanceof Error ? error.message : String(error)
-                });
+                }, 'default-tenant');
 
                 // Send failure notification
                 await sendOptimizationComplete({
@@ -219,7 +219,7 @@ export class SchedulerService {
           monthlyCost: analysis.recommendation?.projectedSavings ? 
             (analysis.recommendation.projectedSavings.monthly * 2) : 
             undefined
-        });
+        }, 'default-tenant');
       }
     } catch (error) {
       console.error('Error analyzing AWS resources:', error);
@@ -250,7 +250,7 @@ export class SchedulerService {
         status: 'running',
         summary: 'AI-powered analysis with Gemini 2.5 Flash + Pinecone RAG',
         triggeredBy: 'user'
-      });
+      }, 'default-tenant');
       historyId = historyEntry.id;
       
       // Get all AWS resources from database
@@ -282,7 +282,7 @@ export class SchedulerService {
         
         if (!hasExisting) {
           // Create new AI-powered recommendation
-          const recommendation = await storage.createRecommendation(aiRec);
+          const recommendation = await storage.createRecommendation(aiRec, 'default-tenant');
           
           console.log(`✨ Created AI recommendation: ${recommendation.title}`);
 
@@ -320,7 +320,7 @@ export class SchedulerService {
                 afterConfig: recommendation.recommendedConfig as any,
                 status: 'failed',
                 errorMessage: error instanceof Error ? error.message : String(error)
-              });
+              }, 'default-tenant');
 
               console.error(`❌ AI autonomous execution failed for ${recommendation.id}:`, error);
             }
@@ -401,7 +401,7 @@ export class SchedulerService {
               usage: usage.toString(),
               usageType: group.Metrics?.UsageQuantity?.Unit || 'Unknown',
               region: 'us-east-1' // Default region
-            });
+            }, 'default-tenant');
           }
         }
       }
@@ -524,7 +524,7 @@ export class SchedulerService {
           projectedAnnualSavings: annualSavings,
           riskLevel: riskLevel === 'low' ? 3 : (riskLevel === 'medium' ? 7 : 9),
           executionMode: executionMode
-        });
+        }, 'default-tenant');
         
         newRecommendationsCount++;
         totalSavings += annualSavings;
@@ -635,7 +635,7 @@ export class SchedulerService {
         afterConfig: recommendation.recommendedConfig,
         actualSavings: recommendation.projectedMonthlySavings,
         status: 'success'
-      });
+      }, 'default-tenant');
     } catch (error) {
       // Record failed optimization
       await storage.createOptimizationHistory({
@@ -646,7 +646,7 @@ export class SchedulerService {
         afterConfig: recommendation.recommendedConfig,
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : String(error)
-      });
+      }, 'default-tenant');
       
       throw error;
     }
@@ -674,7 +674,7 @@ export class SchedulerService {
           afterConfig: recommendation.recommendedConfig,
           actualSavings: recommendation.projectedMonthlySavings,
           status: 'success'
-        });
+        }, 'default-tenant');
       }
       
       return result;
@@ -688,7 +688,7 @@ export class SchedulerService {
         afterConfig: recommendation.recommendedConfig,
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : String(error)
-      });
+      }, 'default-tenant');
 
       throw error;
     }

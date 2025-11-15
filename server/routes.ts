@@ -497,14 +497,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Username already exists" });
       }
 
-      const user = await storage.createUser(validatedData);
+      // Extract tenantId from validated data or default to 'default-tenant'
+      const tenantId = validatedData.tenantId || 'default-tenant';
+      const user = await storage.createUser(validatedData, tenantId);
       
       // Generate JWT token with tenantId
       const token = generateToken({
         userId: user.id,
         username: user.username,
         role: user.role,
-        tenantId: user.tenantId || 'default-tenant'
+        tenantId: user.tenantId
       });
 
       res.json({ 
@@ -619,10 +621,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/recommendations", ...authenticated, auditMiddleware(auditActions.CREATE, auditResourceTypes.RECOMMENDATION, req => req.body?.id), async (req, res) => {
     try {
       const validatedData = insertRecommendationSchema.parse(req.body);
-      const recommendation = await storage.createRecommendation(validatedData);
+      
+      // Extract tenantId from authenticated user
+      const tenantId = req.user?.tenantId || 'default-tenant';
+      const recommendation = await storage.createRecommendation(validatedData, tenantId);
       
       // Broadcast new recommendation to connected clients in the same tenant
-      const tenantId = recommendation.tenantId || req.user?.tenantId || 'default-tenant';
       broadcastToTenant(tenantId, {
         type: 'new_recommendation',
         data: recommendation
@@ -657,6 +661,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Extract tenantId from authenticated user
+      const tenantId = req.user?.tenantId || 'default-tenant';
+      
       // Create approval request with date handling
       const approvalRequestData = {
         ...validatedData,
@@ -664,7 +671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       console.log("Final approval request data:", approvalRequestData);
       
-      const approvalRequest = await storage.createApprovalRequest(approvalRequestData as any);
+      const approvalRequest = await storage.createApprovalRequest(approvalRequestData as any, tenantId);
       console.log("Created approval request:", approvalRequest);
       
       // If approved, update the recommendation status and create activity entry
@@ -683,12 +690,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             afterConfig: recommendation.recommendedConfig as any,
             actualSavings: recommendation.projectedMonthlySavings,
             status: 'approved'
-          });
+          }, tenantId);
         }
       }
       
       // Broadcast approval request to connected clients in the same tenant
-      const tenantId = approvalRequest.tenantId || req.user?.tenantId || 'default-tenant';
       broadcastToTenant(tenantId, {
         type: 'approval_request',
         data: approvalRequest
@@ -1062,7 +1068,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { insertSystemConfigSchema } = await import("@shared/schema");
       const validatedData = insertSystemConfigSchema.parse(req.body);
-      const config = await storage.setSystemConfig(validatedData);
+      
+      // Extract tenantId from authenticated user
+      const tenantId = req.user?.tenantId || 'default-tenant';
+      const config = await storage.setSystemConfig(validatedData, tenantId);
       res.json(config);
     } catch (error) {
       console.error("Error setting system config:", error);
@@ -1234,6 +1243,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let result;
       
+      // Extract tenantId from recommendation
+      const tenantId = recommendation.tenantId || 'default-tenant';
+      
       if (recommendation.type === 'resize' && recommendation.resourceId.includes('redshift')) {
         // Execute Redshift cluster resize
         const config = recommendation.recommendedConfig;
@@ -1252,7 +1264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           afterConfig: recommendation.recommendedConfig,
           actualSavings: recommendation.projectedMonthlySavings,
           status: 'success'
-        });
+        }, tenantId);
 
         // Send Slack notification
         await sendOptimizationComplete({
@@ -1265,6 +1277,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       return result;
     } catch (error) {
+      // Extract tenantId from recommendation
+      const tenantId = recommendation.tenantId || 'default-tenant';
+      
       // Record failed optimization
       await storage.createOptimizationHistory({
         recommendationId: recommendation.id,
@@ -1274,7 +1289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         afterConfig: recommendation.recommendedConfig,
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : String(error)
-      });
+      }, tenantId);
 
       await sendOptimizationComplete({
         title: recommendation.title,

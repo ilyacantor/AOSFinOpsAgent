@@ -241,7 +241,7 @@ export class DataGenerator {
       const created = await this.storage.createAwsResource({
         ...resource,
         lastAnalyzed: new Date()
-      });
+      }, 'default-tenant');
       resources.push(created);
     }
 
@@ -273,7 +273,7 @@ export class DataGenerator {
           usage: this.generateUsageForService(service),
           usageType: this.getUsageTypeForService(service),
           region: ['us-east-1', 'us-west-2', 'eu-west-1'][Math.floor(Math.random() * 3)]
-        });
+        }, 'default-tenant');
       }
     }
   }
@@ -477,7 +477,7 @@ export class DataGenerator {
     // Store recommendations
     const createdRecommendations = [];
     for (const rec of recommendations) {
-      const created = await this.storage.createRecommendation(rec);
+      const created = await this.storage.createRecommendation(rec, 'default-tenant');
       createdRecommendations.push(created);
     }
 
@@ -554,7 +554,7 @@ export class DataGenerator {
     ];
 
     for (const item of historyItems) {
-      await this.storage.createOptimizationHistory(item);
+      await this.storage.createOptimizationHistory(item, 'default-tenant');
     }
   }
 

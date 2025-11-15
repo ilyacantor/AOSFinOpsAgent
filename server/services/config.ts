@@ -206,7 +206,7 @@ export class ConfigService {
     for (const config of defaults) {
       const existing = await storage.getSystemConfig(config.key);
       if (!existing) {
-        await storage.setSystemConfig(config);
+        await storage.setSystemConfig(config, 'default-tenant');
         this.configCache.set(config.key, config.value);
       } else {
         this.configCache.set(config.key, existing.value);

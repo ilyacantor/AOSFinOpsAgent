@@ -165,7 +165,7 @@ export class SyntheticDataGenerator {
     // Store all resources (create new or update existing)
     for (const resource of syntheticResources) {
       try {
-        await storage.createAwsResource(resource);
+        await storage.createAwsResource(resource, 'default-tenant');
       } catch (error) {
         // Resource already exists, update it with new 10× multiplied costs
         console.log(`Updating existing resource: ${resource.resourceId}`);
@@ -286,7 +286,7 @@ export class SyntheticDataGenerator {
 
     const randomResource = newResourceTemplates[Math.floor(Math.random() * newResourceTemplates.length)];
     
-    await storage.createAwsResource(randomResource);
+    await storage.createAwsResource(randomResource, 'default-tenant');
     
     // Add pattern for new resource
     this.resourcePatterns.set(randomResource.resourceId, {
