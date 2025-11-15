@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { isTokenValid, clearAuthAndRedirect } from '@/lib/auth-utils';
 
 interface WebSocketMessage {
   type: string;
@@ -17,8 +18,12 @@ export function useWebSocket() {
     // Get JWT token from localStorage
     const token = localStorage.getItem('token');
     
-    if (!token) {
-      console.warn('[WebSocket] No authentication token found, skipping connection');
+    if (!token || !isTokenValid(token)) {
+      console.warn('[WebSocket] No valid authentication token found');
+      if (token && !isTokenValid(token)) {
+        console.error('[WebSocket] Token expired - logging out');
+        clearAuthAndRedirect();
+      }
       setAuthError('Authentication required');
       return;
     }
@@ -50,7 +55,13 @@ export function useWebSocket() {
             // Handle authentication errors
             if (message.type === 'error') {
               console.error('[WebSocket] Server error:', message.data);
-              setAuthError(message.data.message);
+              const errorMsg = message.data.message || message.data;
+              setAuthError(errorMsg);
+              
+              // If it's an auth error, clear token and redirect
+              if (errorMsg.toLowerCase().includes('token') || errorMsg.toLowerCase().includes('auth')) {
+                clearAuthAndRedirect();
+              }
             }
             
             setLastMessage(message);
@@ -66,7 +77,7 @@ export function useWebSocket() {
           if (event.code === 1008) {
             console.error('[WebSocket] Authentication failed:', event.reason);
             setAuthError(event.reason || 'Authentication failed');
-            // Don't reconnect on auth failure
+            clearAuthAndRedirect();
             return;
           }
           

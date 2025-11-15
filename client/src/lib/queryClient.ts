@@ -1,17 +1,25 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { clearAuthAndRedirect } from "@/lib/auth-utils";
 
 function handleUnauthorized() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
-  window.location.href = "/login";
+  clearAuthAndRedirect();
 }
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+    
+    // Handle authentication errors (401 or 403 with token-related messages)
     if (res.status === 401) {
       handleUnauthorized();
+      return;
     }
-    const text = (await res.text()) || res.statusText;
+    
+    if (res.status === 403 && text.toLowerCase().includes('token')) {
+      console.error('[queryClient] 403 with token error - logging out');
+      handleUnauthorized();
+      return;
+    }
     
     // Provide user-friendly error messages for common status codes
     if (res.status === 429) {

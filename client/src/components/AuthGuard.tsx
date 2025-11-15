@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { isTokenValid } from "@/lib/auth-utils";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -12,7 +13,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
   useEffect(() => {
     const token = localStorage.getItem("token");
     
-    if (!token) {
+    if (!token || !isTokenValid(token)) {
+      console.log('[AuthGuard] No valid token found - redirecting to login');
+      localStorage.removeItem("token");
       setIsAuthenticated(false);
       setLocation("/login");
       return;
