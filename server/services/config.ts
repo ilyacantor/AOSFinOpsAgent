@@ -1,6 +1,9 @@
 import { storage } from '../storage.js';
 import { logger } from './logger.js';
 
+// Config service operates in the system tenant context
+const SYSTEM_TENANT_ID = 'default-tenant';
+
 export interface AgentConfig {
   autonomousMode: boolean;
   prodMode: boolean;
@@ -204,9 +207,9 @@ export class ConfigService {
     ];
 
     for (const config of defaults) {
-      const existing = await storage.getSystemConfig(config.key);
+      const existing = await storage.getSystemConfig(config.key, SYSTEM_TENANT_ID);
       if (!existing) {
-        await storage.setSystemConfig(config, 'default-tenant');
+        await storage.setSystemConfig({ ...config, tenantId: SYSTEM_TENANT_ID }, SYSTEM_TENANT_ID);
         this.configCache.set(config.key, config.value);
       } else {
         this.configCache.set(config.key, existing.value);
@@ -237,17 +240,17 @@ export class ConfigService {
   }
 
   async setAutonomousMode(enabled: boolean, updatedBy: string): Promise<void> {
-    await storage.updateSystemConfig('agent.autonomous_mode', enabled.toString(), updatedBy);
+    await storage.updateSystemConfig('agent.autonomous_mode', enabled.toString(), updatedBy, SYSTEM_TENANT_ID);
     this.configCache.set('agent.autonomous_mode', enabled.toString());
   }
 
   async setMaxAutonomousRiskLevel(riskLevel: number, updatedBy: string): Promise<void> {
-    await storage.updateSystemConfig('agent.max_autonomous_risk_level', riskLevel.toString(), updatedBy);
+    await storage.updateSystemConfig('agent.max_autonomous_risk_level', riskLevel.toString(), updatedBy, SYSTEM_TENANT_ID);
     this.configCache.set('agent.max_autonomous_risk_level', riskLevel.toString());
   }
 
   async setProdMode(enabled: boolean, updatedBy: string): Promise<void> {
-    await storage.updateSystemConfig('agent.prod_mode', enabled.toString(), updatedBy);
+    await storage.updateSystemConfig('agent.prod_mode', enabled.toString(), updatedBy, SYSTEM_TENANT_ID);
     this.configCache.set('agent.prod_mode', enabled.toString());
     
     // Track expiration time when enabling prod mode
@@ -259,7 +262,7 @@ export class ConfigService {
   }
 
   async setSimulationMode(enabled: boolean, updatedBy: string): Promise<void> {
-    await storage.updateSystemConfig('agent.simulation_mode', enabled.toString(), updatedBy);
+    await storage.updateSystemConfig('agent.simulation_mode', enabled.toString(), updatedBy, SYSTEM_TENANT_ID);
     this.configCache.set('agent.simulation_mode', enabled.toString());
   }
 
@@ -301,7 +304,7 @@ export class ConfigService {
   private async refreshCache(): Promise<void> {
     // Only refresh cache if it's empty or periodically
     if (this.configCache.size === 0) {
-      const allConfig = await storage.getAllSystemConfig();
+      const allConfig = await storage.getAllSystemConfig(SYSTEM_TENANT_ID);
       for (const config of allConfig) {
         this.configCache.set(config.key, config.value);
       }

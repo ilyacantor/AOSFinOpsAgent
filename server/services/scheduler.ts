@@ -126,6 +126,7 @@ export class SchedulerService {
           if (!hasExisting) {
             // Create new recommendation
             const recommendation = await storage.createRecommendation({
+              tenantId: SYSTEM_TENANT_ID,
               resourceId: cluster.ClusterIdentifier,
               type: 'resize',
               priority: analysis.recommendation.avgUtilization < 25 ? 'critical' : 'high',
@@ -148,7 +149,7 @@ export class SchedulerService {
             // Check if we can execute autonomously
             const canExecuteAutonomously = await configService.canExecuteAutonomously({
               type: recommendation.type,
-              riskLevel: recommendation.riskLevel,
+              riskLevel: recommendation.riskLevel ?? 0,
               projectedAnnualSavings: recommendation.projectedAnnualSavings
             });
 
@@ -172,6 +173,7 @@ export class SchedulerService {
                 
                 // Create failed optimization history entry
                 await storage.createOptimizationHistory({
+                  tenantId: SYSTEM_TENANT_ID,
                   recommendationId: recommendation.id,
                   executedBy: 'autonomous-agent',
                   executionDate: new Date(),
@@ -208,6 +210,7 @@ export class SchedulerService {
 
         // Update resource in database
         await storage.createAwsResource({
+          tenantId: SYSTEM_TENANT_ID,
           resourceId: cluster.ClusterIdentifier,
           resourceType: 'Redshift',
           region: cluster.AvailabilityZone?.slice(0, -1) || 'us-east-1',
@@ -249,6 +252,7 @@ export class SchedulerService {
       
       // Create AI mode history entry to track this run
       const historyEntry = await storage.createAiModeHistory({
+        tenantId: SYSTEM_TENANT_ID,
         startTime,
         status: 'running',
         summary: 'AI-powered analysis with Gemini 2.5 Flash + Pinecone RAG',
@@ -292,7 +296,7 @@ export class SchedulerService {
           // Check if we can execute autonomously
           const canExecuteAutonomously = await configService.canExecuteAutonomously({
             type: recommendation.type,
-            riskLevel: recommendation.riskLevel,
+            riskLevel: recommendation.riskLevel ?? 0,
             projectedAnnualSavings: recommendation.projectedAnnualSavings
           });
 
@@ -316,6 +320,7 @@ export class SchedulerService {
               
               // Create failed optimization history entry
               await storage.createOptimizationHistory({
+                tenantId: SYSTEM_TENANT_ID,
                 recommendationId: recommendation.id,
                 executedBy: 'gemini-ai-agent',
                 executionDate: new Date(),
@@ -398,6 +403,7 @@ export class SchedulerService {
           
           if (cost > 0) {
             await storage.createCostReport({
+              tenantId: SYSTEM_TENANT_ID,
               reportDate,
               serviceCategory: service,
               cost: Math.round(cost * 1000), // Convert to integer (cents * 10)
@@ -516,6 +522,7 @@ export class SchedulerService {
         
         // Create recommendation
         const recommendation = await storage.createRecommendation({
+          tenantId: SYSTEM_TENANT_ID,
           resourceId: resource.resourceId,
           type: recType,
           priority: riskLevel === 'high' ? 'critical' : (riskLevel === 'medium' ? 'high' : 'medium'),
@@ -631,6 +638,7 @@ export class SchedulerService {
     try {
       // Record the optimization in history
       await storage.createOptimizationHistory({
+        tenantId: SYSTEM_TENANT_ID,
         recommendationId: recommendation.id,
         executedBy: 'heuristic-autopilot',
         executionDate: new Date(),
@@ -642,6 +650,7 @@ export class SchedulerService {
     } catch (error) {
       // Record failed optimization
       await storage.createOptimizationHistory({
+        tenantId: SYSTEM_TENANT_ID,
         recommendationId: recommendation.id,
         executedBy: 'heuristic-autopilot',
         executionDate: new Date(),
@@ -670,6 +679,7 @@ export class SchedulerService {
         
         // Record the optimization in history
         await storage.createOptimizationHistory({
+          tenantId: SYSTEM_TENANT_ID,
           recommendationId: recommendation.id,
           executedBy: 'autonomous-agent',
           executionDate: new Date(),
@@ -684,6 +694,7 @@ export class SchedulerService {
     } catch (error) {
       // Record failed optimization
       await storage.createOptimizationHistory({
+        tenantId: SYSTEM_TENANT_ID,
         recommendationId: recommendation.id,
         executedBy: 'autonomous-agent',
         executionDate: new Date(),

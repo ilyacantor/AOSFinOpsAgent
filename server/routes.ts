@@ -721,6 +721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (recommendation) {
           console.log("Creating activity entry for approval");
           await storage.createOptimizationHistory({
+            tenantId,
             recommendationId: validatedData.recommendationId,
             executedBy: req.user?.userId || validatedData.approvedBy || 'system',
             executionDate: new Date(),
@@ -862,7 +863,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             approverRole: 'Head of Cloud Platform',
             status: 'pending',
             requestDate: new Date()
-          } as any);
+          } as any, tenantId);
 
           // Use transaction to update both recommendation and approval request to approved atomically
           const { recommendation: approvedRec, approvalRequest: approvedReq } = await handleApprovalTransaction({
@@ -1327,6 +1328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Record the optimization in history
         await storage.createOptimizationHistory({
+          tenantId,
           recommendationId: recommendation.id,
           executedBy: 'system', // In a real app, this would be the current user
           executionDate: new Date(),
@@ -1352,6 +1354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Record failed optimization
       await storage.createOptimizationHistory({
+        tenantId,
         recommendationId: recommendation.id,
         executedBy: 'system',
         executionDate: new Date(),
