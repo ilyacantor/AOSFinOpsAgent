@@ -36,7 +36,10 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
       {isMobileOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose?.();
+          }}
           data-testid="sidebar-backdrop"
         />
       )}
@@ -48,6 +51,7 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
           transition-transform duration-300 ease-in-out
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
+        onClick={(e) => e.stopPropagation()}
         data-testid="sidebar"
       >
         {/* Mobile close button */}
