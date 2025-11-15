@@ -83,8 +83,31 @@ Preferred communication style: Simple, everyday language.
   - JWT_SECRET required at startup (32+ chars minimum)
   - Fail-fast validation for missing/weak secrets
   - Password hashing with bcrypt (10 rounds)
-  - Multi-tenant isolation via tenantId
+  - Multi-tenant isolation via tenantId (COMPLETE)
   - Circuit breakers and health check endpoints
+
+### Multi-Tenancy Architecture (Complete)
+- **Database Layer**:
+  - tenantId column on all 9 user-scoped tables (NOT NULL, no defaults)
+  - Composite indexes for tenant-scoped queries (tenantId + createdAt/status/reportDate)
+  - Default tenant: 'default-tenant' for system operations
+- **Storage Layer**:
+  - All create/read/update/delete methods require tenantId parameter
+  - All queries filter by tenantId using WHERE clauses
+  - Pattern: `where(and(eq(table.id, id), eq(table.tenantId, tenantId)))`
+- **API Layer**:
+  - All authenticated endpoints extract tenantId from JWT (req.user?.tenantId)
+  - Fail with 401 if tenantId missing (except login/register)
+  - No 'default-tenant' fallbacks in authenticated routes
+- **Background Services**:
+  - SYSTEM_TENANT_ID = 'default-tenant' constant
+  - All storage calls explicitly pass SYSTEM_TENANT_ID
+  - scheduler.ts and data-generator.ts properly scoped
+- **Security Impact**:
+  - Complete tenant data isolation enforced
+  - No cross-tenant data leakage possible
+  - Both READ and WRITE paths secured
+  - JWT payload includes tenantId for all requests
 
 ### Real-time Communication
 - **WebSocket Server**: Integrated for dashboard updates
