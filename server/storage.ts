@@ -531,10 +531,11 @@ export class DatabaseStorage implements IStorage {
     const realizedSavings = Number(realizedSavingsResult.total);
     const wastePercentage = monthlySpend > 0 ? (identifiedSavings / 12 / monthlySpend) * 100 : 0;
 
+    // CRITICAL: Divide all monetary values by 1000 to normalize the storage multiplier
     return {
-      monthlySpend,
-      identifiedSavings,
-      realizedSavings,
+      monthlySpend: monthlySpend / 1000,
+      identifiedSavings: identifiedSavings / 1000,
+      realizedSavings: realizedSavings / 1000,
       resourcesAnalyzed: Number(resourcesResult.count),
       wastePercentage: Math.round(wastePercentage)
     };
@@ -700,11 +701,13 @@ export class DatabaseStorage implements IStorage {
       ? (realizedSavingsYTD / ytdSpend) * 100 
       : 0;
 
+    // CRITICAL: Divide all monetary values by 1000 to normalize the storage multiplier
+    // (Database stores monetary values as integers scaled by 1000)
     return {
-      monthlySpend,
-      ytdSpend,
-      identifiedSavingsAwaitingApproval,
-      realizedSavingsYTD,
+      monthlySpend: monthlySpend / 1000,
+      ytdSpend: ytdSpend / 1000,
+      identifiedSavingsAwaitingApproval: identifiedSavingsAwaitingApproval / 1000,
+      realizedSavingsYTD: realizedSavingsYTD / 1000,
       wastePercentOptimizedYTD: Math.round(wastePercentOptimizedYTD * 10) / 10,
       monthlySpendChange: Math.round(monthlySpendChange * 10) / 10,
       ytdSpendChange: Math.round(ytdSpendChange * 10) / 10
