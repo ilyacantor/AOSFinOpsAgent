@@ -125,6 +125,7 @@ export class SchedulerService {
           
           if (!hasExisting) {
             // Create new recommendation
+            const riskLevel = analysis.recommendation.avgUtilization < 25 ? 5 : 10;
             const recommendation = await storage.createRecommendation({
               tenantId: SYSTEM_TENANT_ID,
               resourceId: cluster.ClusterIdentifier,
@@ -142,7 +143,8 @@ export class SchedulerService {
                 numberOfNodes: analysis.recommendation.recommendedNodes
               },
               projectedMonthlySavings: Number(analysis.recommendation.projectedSavings.monthly),
-              riskLevel: analysis.recommendation.avgUtilization < 25 ? 5 : 10
+              riskLevel: riskLevel,
+              executionMode: riskLevel <= 5 ? 'autonomous' : 'hitl'
             }, SYSTEM_TENANT_ID);
 
             // Check if we can execute autonomously
@@ -444,11 +446,6 @@ export class SchedulerService {
   private async generateHeuristicRecommendations() {
     try {
       const config = await configService.getAgentConfig();
-      
-      // Skip if Prod Mode is active (AI takes over)
-      if (config.prodMode) {
-        return;
-      }
       
       // Get all resources from database
       const resources = await storage.getAllAwsResources(SYSTEM_TENANT_ID);

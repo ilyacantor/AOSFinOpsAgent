@@ -116,7 +116,7 @@ export const recommendations = pgTable("recommendations", {
   projectedMonthlySavings: bigint("projected_monthly_savings", { mode: "number" }).notNull(), // Direct dollar amounts (enterprise scale)
   calculationMetadata: jsonb("calculation_metadata"), // Stores resource cost, savings %, methodology for transparency
   riskLevel: integer("risk_level").default(50), // percentage value 1-100, defaults to 50 (medium risk)
-  executionMode: text("execution_mode").notNull().default("autonomous"), // autonomous, hitl
+  executionMode: text("execution_mode").notNull(), // autonomous, hitl
   status: text("status").notNull().default("pending"), // pending, approved, rejected, executed
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

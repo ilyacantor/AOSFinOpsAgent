@@ -208,7 +208,7 @@ RESPONSE FORMAT (JSON array):
 
 IMPORTANT RULES:
 - Only recommend optimizations with clear cost savings (> $10/month)
-- Risk levels: 0-5 (very safe), 5-15 (low risk), 15-30 (moderate), 30+ (high risk)
+- Risk levels on 0-10 scale: 1-3 (low risk), 4-7 (medium risk), 8-10 (high risk)
 - Consider business context from tags (production vs development)
 - Savings must be realistic based on AWS pricing
 - All monetary values should be direct dollar amounts (no multipliers)
