@@ -174,11 +174,11 @@ export default function ExecutiveDashboard() {
                 <CardTitle className="text-sm font-medium text-gray-400">Monthly AWS Spend</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center">
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0BCAD9] break-words">{formatCurrency(monthlySpend)}</div>
-                  <div className={`text-xs sm:text-sm mt-1 flex items-center gap-1 ${monthlySpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                    {monthlySpendChange > 0 ? <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
-                    {Math.abs(monthlySpendChange).toFixed(1)}% vs last month
+                <div className="flex flex-col justify-center min-h-[60px]">
+                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-[#0BCAD9] leading-tight" data-testid="monthly-spend-value">{formatCurrency(monthlySpend)}</div>
+                  <div className={`text-xs mt-1 flex items-center gap-1 flex-wrap ${monthlySpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    {monthlySpendChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    <span className="whitespace-nowrap">{Math.abs(monthlySpendChange).toFixed(1)}% vs last month</span>
                   </div>
                 </div>
               </CardContent>
@@ -189,11 +189,11 @@ export default function ExecutiveDashboard() {
                 <CardTitle className="text-sm font-medium text-gray-400">YTD AWS Spend</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center">
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0BCAD9] break-words">{formatCurrency(ytdSpend)}</div>
-                  <div className={`text-xs sm:text-sm mt-1 flex items-center gap-1 ${ytdSpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                    {ytdSpendChange > 0 ? <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
-                    {Math.abs(ytdSpendChange).toFixed(1)}% vs prior-year YTD
+                <div className="flex flex-col justify-center min-h-[60px]">
+                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-[#0BCAD9] leading-tight" data-testid="ytd-spend-value">{formatCurrency(ytdSpend)}</div>
+                  <div className={`text-xs mt-1 flex items-center gap-1 flex-wrap ${ytdSpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    {ytdSpendChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    <span className="whitespace-nowrap">{Math.abs(ytdSpendChange).toFixed(1)}% vs prior-year YTD</span>
                   </div>
                 </div>
               </CardContent>
@@ -204,9 +204,9 @@ export default function ExecutiveDashboard() {
                 <CardTitle className="text-sm font-medium text-gray-400">Identified Savings Awaiting Approval</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center">
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-500 break-words">{formatCurrency(identifiedSavings)}</div>
-                  <div className="text-xs sm:text-sm text-[#0BCAD9] mt-1">
+                <div className="flex flex-col justify-center min-h-[60px]">
+                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-green-500 leading-tight" data-testid="identified-savings-value">{formatCurrency(identifiedSavings)}</div>
+                  <div className="text-xs text-[#0BCAD9] mt-1">
                     {recommendations.filter((r: any) => r.status === 'pending' || r.status === 'approved').length} recommendations
                   </div>
                 </div>
@@ -218,9 +218,9 @@ export default function ExecutiveDashboard() {
                 <CardTitle className="text-sm font-medium text-gray-400">Realized Savings YTD</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center">
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0BCAD9] break-words">{formatCurrency(realizedSavings)}</div>
-                  <div className="text-xs sm:text-sm text-gray-400 mt-1">
+                <div className="flex flex-col justify-center min-h-[60px]">
+                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-[#0BCAD9] leading-tight" data-testid="realized-savings-value">{formatCurrency(realizedSavings)}</div>
+                  <div className="text-xs text-gray-400 mt-1">
                     {optimizationHistory.filter((h: any) => h.status === 'success').length} executed
                   </div>
                 </div>
@@ -232,9 +232,9 @@ export default function ExecutiveDashboard() {
                 <CardTitle className="text-sm font-medium text-gray-400">Waste % Optimized YTD</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center">
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-orange-500 break-words">{(wastePercent || 0).toFixed(1)}%</div>
-                  <div className="text-xs sm:text-sm text-gray-400 mt-1">
+                <div className="flex flex-col justify-center min-h-[60px]">
+                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-orange-500 leading-tight" data-testid="waste-percentage-value">{(wastePercent || 0).toFixed(1)}%</div>
+                  <div className="text-xs text-gray-400 mt-1">
                     YTD Performance
                   </div>
                 </div>
