@@ -656,9 +656,10 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Get identified savings awaiting approval (pending + approved recommendations)
+    // Use monthly savings for consistency with other monthly metrics
     const [pendingSavingsResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${recommendations.projectedAnnualSavings}), 0)::numeric`
+        total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
       })
       .from(recommendations)
       .where(
