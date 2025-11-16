@@ -2,16 +2,17 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Data Sources](#data-sources)
-3. [Getting Started](#getting-started)
-4. [Dashboard Features](#dashboard-features)
-5. [Cost Analysis](#cost-analysis)
-6. [Managing Recommendations](#managing-recommendations)
-7. [Approval Workflows](#approval-workflows)
-8. [Automation & Governance](#automation--governance)
-9. [Real-Time Monitoring](#real-time-monitoring)
-10. [API Reference](#api-reference)
-11. [Troubleshooting](#troubleshooting)
+2. [AI Analysis Modes](#ai-analysis-modes)
+3. [Data Sources](#data-sources)
+4. [Getting Started](#getting-started)
+5. [Dashboard Features](#dashboard-features)
+6. [Cost Analysis](#cost-analysis)
+7. [Managing Recommendations](#managing-recommendations)
+8. [Approval Workflows](#approval-workflows)
+9. [Automation & Governance](#automation--governance)
+10. [Real-Time Monitoring](#real-time-monitoring)
+11. [API Reference](#api-reference)
+12. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -19,10 +20,118 @@ FinOps Autopilot is an enterprise cloud cost optimization platform that automati
 
 ### Key Benefits
 - **Automated Cost Analysis**: Continuous monitoring of AWS resources and spending patterns
-- **Intelligent Recommendations**: AI-driven suggestions for cost optimization with risk assessment
+- **AI-Powered Recommendations**: Advanced AI analysis using Google Gemini 2.0 Flash with RAG for intelligent cost optimization
+- **Dual-Mode Operation**: Switch between AI-powered analysis (Production Mode) and heuristic-based recommendations (Demo Mode)
 - **Enterprise Workflows**: Multi-stage approval processes for governance and compliance
 - **Real-Time Insights**: Live dashboards showing cost trends, savings opportunities, and optimization progress
 - **Slack Integration**: Automated notifications for team collaboration
+
+## AI Analysis Modes
+
+FinOps Autopilot supports two operational modes for generating cost optimization recommendations:
+
+### Production Mode (AI + RAG)
+
+**Technology**: Google Gemini 2.0 Flash with Pinecone vector database for Retrieval-Augmented Generation (RAG)
+
+**When to Use**:
+- Production environments requiring high-accuracy recommendations
+- Complex infrastructure with diverse workload patterns
+- Environments where AWS credentials are available
+
+**Features**:
+- **Advanced AI Analysis**: Uses Google's Gemini 2.0 Flash model for intelligent resource analysis
+- **Context-Aware**: RAG integration provides recommendations based on historical patterns and best practices
+- **Scheduled Analysis**: Runs automatically every 6 hours
+- **Manual Trigger**: On-demand analysis via Agent Configuration page
+- **Higher Accuracy**: More sophisticated analysis compared to rule-based systems
+
+**How to Enable**:
+1. Navigate to **Agent Configuration** page
+2. Toggle **Production Mode** switch to ON
+3. Ensure AWS credentials are configured (if using real AWS data)
+4. System will automatically run AI analysis every 6 hours
+
+**Manual AI Analysis**:
+- When Production Mode is active, a "Run AI Analysis Now" button appears
+- Click to trigger immediate AI-powered resource analysis
+- Analysis typically completes within 30-60 seconds
+- New recommendations appear automatically on the dashboard
+
+**Configuration**:
+```javascript
+// Production Mode settings
+{
+  "prodMode": true,           // Enable AI + RAG analysis
+  "aiAnalysisInterval": "0 */6 * * *",  // Every 6 hours
+  "aiModel": "gemini-2.0-flash",
+  "ragEnabled": true,
+  "ragDatabase": "pinecone"
+}
+```
+
+### Demo/Simulation Mode (Heuristics)
+
+**Technology**: Rule-based heuristic engine
+
+**When to Use**:
+- Development and testing environments
+- Demos and proof-of-concept scenarios
+- When AWS credentials are not available
+- Rapid synthetic data generation for testing
+
+**Features**:
+- **Fast Recommendations**: Generates 2-5 recommendations every 3 seconds
+- **Synthetic Data**: Creates realistic AWS resource data for testing
+- **No AWS Credentials Required**: Works with simulated data
+- **High-Velocity Updates**: Continuous 3-second data refresh cycles
+- **Predictable Patterns**: Rule-based recommendations for common scenarios
+
+**Common Recommendation Types**:
+- **EC2 Rightsizing**: Based on CPU utilization thresholds (<30% = downsize)
+- **Resource Scheduling**: Stop non-production instances during off-hours
+- **Storage Tiering**: Move infrequently accessed S3 data to cheaper tiers
+- **Idle Resource Termination**: Remove unused resources
+
+**How to Enable**:
+1. Navigate to **Agent Configuration** page
+2. Toggle **Simulation Mode** switch to ON
+3. System immediately begins generating synthetic data
+4. Recommendations appear within seconds
+
+### Agent Configuration
+
+Access the **Agent Configuration** page to control operational modes and system behavior:
+
+**Available Controls**:
+- **Production Mode**: Enable/disable AI-powered analysis with Gemini 2.0 Flash
+- **Simulation Mode**: Enable/disable synthetic data generation
+- **Autonomous Mode**: Toggle automatic optimization execution
+- **Approval Threshold**: Set minimum savings requiring manual approval
+- **Risk Level**: Configure maximum acceptable risk for autonomous execution
+- **Auto-Execute Types**: Select which recommendation types can run automatically
+
+**System Status Display**:
+- **Analysis Mode**: Shows current mode (AI + RAG or Heuristics)
+- **Data Mode**: Indicates if using simulation or real AWS data
+- **Operation Mode**: Autonomous or manual approval required
+- **Max Risk Level**: Current risk tolerance percentage
+
+### AI Analysis History
+
+Track AI analysis executions and results:
+
+**Available Metrics**:
+- Analysis timestamp and duration
+- Model used (Gemini 2.0 Flash)
+- Number of recommendations generated
+- Total identified savings
+- Success/failure status
+
+**Access History**:
+- Navigate to **Agent Configuration** page
+- View "AI Mode History" section
+- Each entry shows complete analysis details
 
 ## Data Sources
 
