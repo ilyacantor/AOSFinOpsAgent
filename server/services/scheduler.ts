@@ -459,9 +459,9 @@ export class SchedulerService {
         const metrics = resource.utilizationMetrics as any;
         if (!metrics) return false;
         
-        // Define waste thresholds
-        const cpuUtil = metrics.avgCpuUtilization || metrics.cpuUtilization || 50;
-        const memUtil = metrics.avgMemoryUtilization || metrics.memoryUtilization || 50;
+        // Get utilization metrics (default to 0 if missing, treat as wasteful)
+        const cpuUtil = metrics.avgCpuUtilization ?? metrics.cpuUtilization ?? 0;
+        const memUtil = metrics.avgMemoryUtilization ?? metrics.memoryUtilization ?? 0;
         
         // Resource is wasteful if CPU < 30% OR Memory < 40%
         return cpuUtil < 30 || memUtil < 40;
@@ -504,7 +504,7 @@ export class SchedulerService {
         // 80% autonomous (low-risk) / 20% HITL (medium+high risk) distribution
         const riskRandom = Math.random();
         const riskLevel = riskRandom < 0.80 ? 'low' : (riskRandom < 0.90 ? 'medium' : 'high');
-        const executionMode = riskLevel === 'low' ? 'autonomous' : 'hitl';
+        const numericRiskLevel = riskLevel === 'low' ? 3 : (riskLevel === 'medium' ? 7 : 9);
         
         // Calculate savings based on actual resource cost
         const resourceMonthlyCost = resource.monthlyCost || 100000; // Fallback to $100k if cost missing
@@ -523,6 +523,13 @@ export class SchedulerService {
         
         const monthlySavings = Math.round(resourceMonthlyCost * savingsPercentage);
         
+        // Determine execution mode using configService (consistent with AI flow)
+        const executionModeResult = await configService.determineExecutionMode({
+          type: recType,
+          riskLevel: numericRiskLevel,
+          projectedMonthlySavings: monthlySavings
+        });
+        
         const metrics = resource.utilizationMetrics as any;
         const cpuUtil = metrics?.avgCpuUtilization || metrics?.cpuUtilization || 0;
         const memUtil = metrics?.avgMemoryUtilization || metrics?.memoryUtilization || 0;
@@ -538,8 +545,8 @@ export class SchedulerService {
           currentConfig: resource.currentConfig as any,
           recommendedConfig: this.generateRecommendedConfig(recType, resource),
           projectedMonthlySavings: monthlySavings,
-          riskLevel: riskLevel === 'low' ? 3 : (riskLevel === 'medium' ? 7 : 9),
-          executionMode: executionMode,
+          riskLevel: numericRiskLevel.toString(), // Store as string to match AI flow
+          executionMode: executionModeResult.executionMode,
           calculationMetadata: {
             resourceMonthlyCost: resourceMonthlyCost,
             savingsPercentage: savingsPercentage * 100, // Convert to percentage
@@ -551,14 +558,14 @@ export class SchedulerService {
         totalSavings += monthlySavings;
         
         // Count autonomous vs HITL
-        if (executionMode === 'autonomous') {
+        if (executionModeResult.executionMode === 'autonomous') {
           autonomousCount++;
         } else {
           hitlCount++;
         }
         
-        // Auto-optimize autonomous recommendations (low-risk)
-        if (executionMode === 'autonomous') {
+        // Auto-execute autonomous recommendations (regardless of autonomousMode config)
+        if (executionModeResult.executionMode === 'autonomous') {
           try {
             await this.executeSyntheticOptimization(recommendation);
             await storage.updateRecommendationStatus(recommendation.id, 'executed', SYSTEM_TENANT_ID);

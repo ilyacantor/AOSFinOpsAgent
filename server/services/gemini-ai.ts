@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { AwsResource, Recommendation } from "@shared/schema";
 import { storage, pineconeCircuitBreaker } from "../storage.js";
 import { pineconeService } from "./pinecone.js";
+import { configService } from './config.js';
 
 export class GeminiAIService {
   private genAI: GoogleGenerativeAI;
@@ -35,7 +36,7 @@ export class GeminiAIService {
       const text = response.text();
       
       // Parse the AI response into structured recommendations
-      const recommendations = this.parseRecommendations(text, resources, aiModeHistoryId);
+      const recommendations = await this.parseRecommendations(text, resources, aiModeHistoryId);
       
       // Invalidate cache after generating new recommendations (for fresh RAG on next run)
       this.invalidateCache();
@@ -218,7 +219,7 @@ IMPORTANT RULES:
 Generate recommendations now:`;
   }
 
-  private parseRecommendations(aiResponse: string, resources: AwsResource[], aiModeHistoryId?: string): any[] {
+  private async parseRecommendations(aiResponse: string, resources: AwsResource[], aiModeHistoryId?: string): Promise<any[]> {
     try {
       // Extract JSON from the response (AI might wrap it in markdown)
       const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
@@ -230,40 +231,64 @@ Generate recommendations now:`;
       const recommendations = JSON.parse(jsonMatch[0]);
       
       // Validate and normalize recommendations
-      return recommendations.map((rec: any) => {
-        // Find the corresponding resource to get its monthly cost
-        const resource = resources.find(r => r.resourceId === rec.resourceId);
-        const resourceMonthlyCost = resource?.monthlyCost || 0;
-        const projectedMonthlySavings = Math.round(rec.projectedMonthlySavings);
-        
-        // Calculate savings percentage
-        const savingsPercentage = resourceMonthlyCost > 0 
-          ? Math.round((projectedMonthlySavings / resourceMonthlyCost) * 100 * 10) / 10 // Round to 1 decimal
-          : 0;
-        
-        return {
-          resourceId: rec.resourceId,
-          type: rec.type || 'resize',
-          priority: rec.priority || 'medium',
-          title: rec.title || 'AI-Generated Optimization',
-          description: rec.description || rec.reasoning || '',
-          currentConfig: typeof rec.currentConfig === 'string' 
-            ? rec.currentConfig 
-            : JSON.stringify(rec.currentConfig),
-          recommendedConfig: typeof rec.recommendedConfig === 'string'
-            ? rec.recommendedConfig
-            : JSON.stringify(rec.recommendedConfig),
-          projectedMonthlySavings: projectedMonthlySavings,
-          riskLevel: rec.riskLevel?.toString() || '10',
-          status: 'pending',
-          aiModeHistoryId: aiModeHistoryId || null,
-          calculationMetadata: {
-            resourceMonthlyCost: resourceMonthlyCost,
-            savingsPercentage: savingsPercentage,
-            methodology: 'AI-powered analysis using Gemini 2.0 Flash with RAG (Pinecone vector database for historical context)'
+      return Promise.all(recommendations.map(async (rec: any) => {
+        try {
+          // Find the corresponding resource to get its monthly cost
+          const resource = resources.find(r => r.resourceId === rec.resourceId);
+          const resourceMonthlyCost = resource?.monthlyCost || 0;
+          const projectedMonthlySavings = Math.round(rec.projectedMonthlySavings);
+          
+          // Calculate savings percentage
+          const savingsPercentage = resourceMonthlyCost > 0 
+            ? Math.round((projectedMonthlySavings / resourceMonthlyCost) * 100 * 10) / 10 // Round to 1 decimal
+            : 0;
+          
+          // Sanitize risk level: convert to number, clamp to 0-10 range, default to 10 on invalid input
+          const rawRiskLevel = Number(rec.riskLevel);
+          const sanitizedRiskLevel = isNaN(rawRiskLevel) ? 10 : Math.max(0, Math.min(10, rawRiskLevel));
+          
+          // Determine execution mode based on risk level, type, and savings
+          let executionMode = 'hitl'; // Default to HITL for safety
+          try {
+            const executionModeResult = await configService.determineExecutionMode({
+              type: rec.type || 'resize',
+              riskLevel: sanitizedRiskLevel,
+              projectedMonthlySavings: projectedMonthlySavings
+            });
+            executionMode = executionModeResult.executionMode;
+          } catch (error) {
+            console.error(`Failed to determine execution mode for recommendation ${rec.resourceId}, defaulting to HITL:`, error);
+            executionMode = 'hitl';
           }
-        };
-      });
+          
+          return {
+            resourceId: rec.resourceId,
+            type: rec.type || 'resize',
+            priority: rec.priority || 'medium',
+            title: rec.title || 'AI-Generated Optimization',
+            description: rec.description || rec.reasoning || '',
+            currentConfig: typeof rec.currentConfig === 'string' 
+              ? rec.currentConfig 
+              : JSON.stringify(rec.currentConfig),
+            recommendedConfig: typeof rec.recommendedConfig === 'string'
+              ? rec.recommendedConfig
+              : JSON.stringify(rec.recommendedConfig),
+            projectedMonthlySavings: projectedMonthlySavings,
+            riskLevel: sanitizedRiskLevel.toString(),
+            executionMode: executionMode,
+            status: 'pending',
+            aiModeHistoryId: aiModeHistoryId || null,
+            calculationMetadata: {
+              resourceMonthlyCost: resourceMonthlyCost,
+              savingsPercentage: savingsPercentage,
+              methodology: 'AI-powered analysis using Gemini 2.0 Flash with RAG (Pinecone vector database for historical context)'
+            }
+          };
+        } catch (error) {
+          console.error(`Failed to parse recommendation for ${rec.resourceId}, skipping:`, error);
+          return null;
+        }
+      })).then(results => results.filter(r => r !== null));
     } catch (error) {
       console.error("Error parsing AI recommendations:", error);
       console.error("AI Response:", aiResponse);

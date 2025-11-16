@@ -200,7 +200,7 @@ export class ConfigService {
       },
       {
         key: 'agent.auto_execute_types',
-        value: 'resize,storage-class',
+        value: 'rightsizing,scheduling,storage-tiering',
         description: 'Comma-separated list of recommendation types that can be executed autonomously',
         updatedBy: 'system'
       }
@@ -234,7 +234,7 @@ export class ConfigService {
       simulationMode: this.getBooleanConfig('agent.simulation_mode', false),
       maxAutonomousRiskLevel: this.getNumberConfig('agent.max_autonomous_risk_level', 5.0),
       approvalRequiredAboveSavings: this.getNumberConfig('agent.approval_required_above_savings', 10000),
-      autoExecuteTypes: this.getArrayConfig('agent.auto_execute_types', ['resize', 'storage-class']),
+      autoExecuteTypes: this.getArrayConfig('agent.auto_execute_types', ['rightsizing', 'scheduling', 'storage-tiering']),
       prodModeTimeRemaining
     };
   }
