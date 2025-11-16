@@ -80,7 +80,7 @@ export const awsResources = pgTable("aws_resources", {
   region: text("region").notNull(),
   currentConfig: jsonb("current_config").notNull(),
   utilizationMetrics: jsonb("utilization_metrics"),
-  monthlyCost: bigint("monthly_cost", { mode: "number" }), // Multiplied by 1000, supports 10× enterprise scale
+  monthlyCost: bigint("monthly_cost", { mode: "number" }), // Direct dollar amounts (enterprise scale)
   lastAnalyzed: timestamp("last_analyzed").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
@@ -93,7 +93,7 @@ export const costReports = pgTable("cost_reports", {
   reportDate: timestamp("report_date").notNull(),
   serviceCategory: text("service_category").notNull(),
   resourceId: text("resource_id"),
-  cost: bigint("cost", { mode: "number" }).notNull(), // Multiplied by 1000, supports 10× enterprise scale
+  cost: bigint("cost", { mode: "number" }).notNull(), // Direct dollar amounts (enterprise scale)
   usage: decimal("usage", { precision: 12, scale: 6 }),
   usageType: text("usage_type"),
   region: text("region"),
@@ -112,8 +112,8 @@ export const recommendations = pgTable("recommendations", {
   description: text("description").notNull(),
   currentConfig: jsonb("current_config").notNull(),
   recommendedConfig: jsonb("recommended_config").notNull(),
-  projectedMonthlySavings: bigint("projected_monthly_savings", { mode: "number" }).notNull(), // Multiplied by 1000, supports 10× scale
-  projectedAnnualSavings: bigint("projected_annual_savings", { mode: "number" }).notNull(), // Multiplied by 1000, supports 10× scale
+  projectedMonthlySavings: bigint("projected_monthly_savings", { mode: "number" }).notNull(), // Direct dollar amounts (enterprise scale)
+  projectedAnnualSavings: bigint("projected_annual_savings", { mode: "number" }).notNull(), // Direct dollar amounts (enterprise scale)
   riskLevel: integer("risk_level").default(50), // percentage value 1-100, defaults to 50 (medium risk)
   executionMode: text("execution_mode").notNull().default("autonomous"), // autonomous, hitl
   status: text("status").notNull().default("pending"), // pending, approved, rejected, executed
@@ -131,7 +131,7 @@ export const optimizationHistory = pgTable("optimization_history", {
   executionDate: timestamp("execution_date").notNull(),
   beforeConfig: jsonb("before_config").notNull(),
   afterConfig: jsonb("after_config").notNull(),
-  actualSavings: bigint("actual_savings", { mode: "number" }), // Multiplied by 1000, supports 10× scale
+  actualSavings: bigint("actual_savings", { mode: "number" }), // Direct dollar amounts (enterprise scale)
   status: text("status").notNull(), // success, failed, in-progress
   errorMessage: text("error_message"),
   slackMessageId: text("slack_message_id"),

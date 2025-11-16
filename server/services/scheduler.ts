@@ -44,7 +44,7 @@ export class SchedulerService {
 
   private startContinuousSimulation() {
     console.log('⚡ Demo Mode Active — 3s scan interval');
-    console.log('💰 Scaling ×10 applied at data source');
+    console.log('💰 Enterprise-scale monetary values (millions in savings)');
     
     this.continuousSimulationInterval = setInterval(async () => {
       // Guard against overlapping executions
@@ -406,7 +406,7 @@ export class SchedulerService {
               tenantId: SYSTEM_TENANT_ID,
               reportDate,
               serviceCategory: service,
-              cost: Math.round(cost * 1000), // Convert to integer (cents * 10)
+              cost: Math.round(cost), // Direct dollar amounts (enterprise scale)
               usage: usage.toString(),
               usageType: group.Metrics?.UsageQuantity?.Unit || 'Unknown',
               region: 'us-east-1' // Default region
@@ -511,9 +511,9 @@ export class SchedulerService {
         const riskLevel = riskRandom < 0.80 ? 'low' : (riskRandom < 0.90 ? 'medium' : 'high');
         const executionMode = riskLevel === 'low' ? 'autonomous' : 'hitl';
         
-        // Generate base savings ($250-$3000), apply 10× multiplier, then convert to storage format (×1000)
-        const baseSavings = Math.floor(Math.random() * 2750) + 250;
-        const monthlySavings = baseSavings * 10 * 1000; // BASE × 10 × 1000
+        // Generate enterprise-scale savings ($250k-$3M monthly)
+        const baseSavings = Math.floor(Math.random() * 2750000) + 250000; // $250k-$3M
+        const monthlySavings = baseSavings; // Direct dollar amounts (enterprise scale)
         const annualSavings = monthlySavings * 12;
         
         const metrics = resource.utilizationMetrics as any;

@@ -75,7 +75,7 @@ export class PineconeService {
       await this.ensureIndex();
       const index = this.pinecone.index(this.indexName);
       
-      const content = `${recommendation.type}: ${recommendation.description}. Impact: ${recommendation.estimatedSavings / 1000} savings, Priority: ${recommendation.priority}`;
+      const content = `${recommendation.type}: ${recommendation.description}. Impact: $${recommendation.estimatedSavings} savings, Priority: ${recommendation.priority}`;
       const embedding = await this.generateEmbedding(content);
       
       const metadata: VectorMetadata = {

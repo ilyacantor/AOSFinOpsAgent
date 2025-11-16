@@ -19,6 +19,7 @@ export class SyntheticDataGenerator {
     const syntheticResources: InsertAwsResource[] = [
       // Redshift clusters with different patterns
       {
+        tenantId: 'default-tenant',
         resourceId: 'redshift-prod-analytics',
         resourceType: 'Redshift',
         region: 'us-east-1',
@@ -32,10 +33,11 @@ export class SyntheticDataGenerator {
           diskUtilization: 45,
           queryCount: 15000
         },
-        monthlyCost: 960000000, // $960,000 (BASE $96k × 10)
+        monthlyCost: 960000, // $960,000/month (enterprise scale)
         lastAnalyzed: new Date()
       },
       {
+        tenantId: 'default-tenant',
         resourceId: 'redshift-dev-testing',
         resourceType: 'Redshift',
         region: 'us-west-2',
@@ -49,10 +51,11 @@ export class SyntheticDataGenerator {
           diskUtilization: 30,
           queryCount: 2000
         },
-        monthlyCost: 72000000, // $72,000 (BASE $7.2k × 10)
+        monthlyCost: 72000, // $72,000/month (enterprise scale)
         lastAnalyzed: new Date()
       },
       {
+        tenantId: 'default-tenant',
         resourceId: 'redshift-data-warehouse',
         resourceType: 'Redshift',
         region: 'eu-west-1',
@@ -66,11 +69,12 @@ export class SyntheticDataGenerator {
           diskUtilization: 65,
           queryCount: 48000
         },
-        monthlyCost: 2160000000, // $2,160,000 (BASE $216k × 10)
+        monthlyCost: 2160000, // $2,160,000/month (enterprise scale)
         lastAnalyzed: new Date()
       },
       // EC2 instances
       {
+        tenantId: 'default-tenant',
         resourceId: 'i-0a1b2c3d4e5f6g7h8',
         resourceType: 'EC2',
         region: 'us-east-1',
@@ -83,10 +87,11 @@ export class SyntheticDataGenerator {
           networkIn: 1024000,
           networkOut: 512000
         },
-        monthlyCost: 12100000, // $12,100 (BASE $1.21k × 10)
+        monthlyCost: 12100, // $12,100/month (enterprise scale)
         lastAnalyzed: new Date()
       },
       {
+        tenantId: 'default-tenant',
         resourceId: 'i-9h8g7f6e5d4c3b2a1',
         resourceType: 'EC2',
         region: 'us-west-2',
@@ -99,11 +104,12 @@ export class SyntheticDataGenerator {
           networkIn: 512000,
           networkOut: 256000
         },
-        monthlyCost: 28000000, // $28,000 (BASE $2.8k × 10)
+        monthlyCost: 28000, // $28,000/month (enterprise scale)
         lastAnalyzed: new Date()
       },
       // RDS instances
       {
+        tenantId: 'default-tenant',
         resourceId: 'rds-prod-mysql',
         resourceType: 'RDS',
         region: 'us-east-1',
@@ -118,7 +124,7 @@ export class SyntheticDataGenerator {
           readIOPS: 8500,
           writeIOPS: 3200
         },
-        monthlyCost: 87600000, // $87,600 (BASE $8.76k × 10)
+        monthlyCost: 87600, // $87,600/month (enterprise scale)
         lastAnalyzed: new Date()
       }
     ];
@@ -167,14 +173,14 @@ export class SyntheticDataGenerator {
       try {
         await storage.createAwsResource(resource, 'default-tenant');
       } catch (error) {
-        // Resource already exists, update it with new 10× multiplied costs
+        // Resource already exists, update it with enterprise-scale costs
         console.log(`Updating existing resource: ${resource.resourceId}`);
         await storage.updateAwsResource(resource.resourceId, {
           monthlyCost: resource.monthlyCost,
           utilizationMetrics: resource.utilizationMetrics,
           currentConfig: resource.currentConfig,
           lastAnalyzed: new Date()
-        });
+        }, 'default-tenant');
       }
     }
 
@@ -185,7 +191,7 @@ export class SyntheticDataGenerator {
   async evolveResources() {
     console.log('🔄 Evolving synthetic resource data...');
 
-    const resources = await storage.getAllAwsResources();
+    const resources = await storage.getAllAwsResources('default-tenant');
     const elapsedMinutes = (Date.now() - this.startTime) / (1000 * 60);
     const elapsedDays = elapsedMinutes / (60 * 24);
 
@@ -238,7 +244,7 @@ export class SyntheticDataGenerator {
         utilizationMetrics: updatedMetrics,
         monthlyCost: updatedCost,
         lastAnalyzed: new Date()
-      });
+      }, 'default-tenant');
 
       console.log(`  Updated ${resource.resourceId}: ${currentMetrics.cpuUtilization}% → ${Math.round(newUtilization)}%`);
     }
@@ -250,6 +256,7 @@ export class SyntheticDataGenerator {
   async addNewResource() {
     const newResourceTemplates: InsertAwsResource[] = [
       {
+        tenantId: 'default-tenant',
         resourceId: `redshift-new-${Date.now()}`,
         resourceType: 'Redshift',
         region: 'us-east-1',
@@ -267,6 +274,7 @@ export class SyntheticDataGenerator {
         lastAnalyzed: new Date()
       },
       {
+        tenantId: 'default-tenant',
         resourceId: `i-${Math.random().toString(36).substring(2, 15)}`,
         resourceType: 'EC2',
         region: 'us-west-2',
@@ -300,7 +308,7 @@ export class SyntheticDataGenerator {
 
   // Mark resources as terminated (update status instead of deleting)
   async markTerminatedResources() {
-    const resources = await storage.getAllAwsResources();
+    const resources = await storage.getAllAwsResources('default-tenant');
     
     // Mark resources with very low utilization as terminated
     for (const resource of resources) {
@@ -314,7 +322,7 @@ export class SyntheticDataGenerator {
             ...(resource.currentConfig as any),
             state: 'terminated'
           }
-        });
+        }, 'default-tenant');
         this.resourcePatterns.delete(resource.resourceId);
         console.log(`✅ Marked resource as terminated: ${resource.resourceId}`);
         break; // Only mark one at a time

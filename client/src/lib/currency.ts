@@ -1,14 +1,14 @@
 // Utility functions for formatting financial values
-// All financial values in the database are multiplied by 1000 and stored as integers
+// All financial values are stored as direct dollar amounts (no multipliers)
 
 export function formatCurrency(value: number | string | null | undefined): string {
   if (value === null || value === undefined) {
     return '$0';
   }
   
-  // Convert to number and divide by 1000 to get original dollar amount
+  // Convert to number (values are already in dollars)
   const numValue = typeof value === 'string' ? parseInt(value) : value;
-  const dollarAmount = numValue / 1000;
+  const dollarAmount = numValue;
   
   // Format with exactly 2 decimal places and thousands separators
   return `$${dollarAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -26,9 +26,9 @@ export function formatCurrencyK(value: number | string | null | undefined): stri
     return '$0';
   }
   
-  // Convert to number and divide by 1000 to get original dollar amount
+  // Convert to number (values are already in dollars)
   const numValue = typeof value === 'string' ? parseInt(value) : value;
-  const dollarAmount = numValue / 1000;
+  const dollarAmount = numValue;
   
   // If less than $1,000, show as whole dollars
   if (dollarAmount < 1000) {

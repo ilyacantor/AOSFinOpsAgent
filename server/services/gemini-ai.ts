@@ -212,7 +212,7 @@ IMPORTANT RULES:
 - Risk levels: 0-5 (very safe), 5-15 (low risk), 15-30 (moderate), 30+ (high risk)
 - Consider business context from tags (production vs development)
 - Savings must be realistic based on AWS pricing
-- All monetary values should be integers (multiply by 1000, no decimal places)
+- All monetary values should be direct dollar amounts (no multipliers)
 - Provide specific, actionable recommendations
 - Use historical success patterns to guide your recommendations
 
@@ -243,8 +243,8 @@ Generate recommendations now:`;
         recommendedConfig: typeof rec.recommendedConfig === 'string'
           ? rec.recommendedConfig
           : JSON.stringify(rec.recommendedConfig),
-        projectedMonthlySavings: Math.round(rec.projectedMonthlySavings * 1000), // Convert to integer * 1000
-        projectedAnnualSavings: Math.round(rec.projectedAnnualSavings * 1000), // Convert to integer * 1000
+        projectedMonthlySavings: Math.round(rec.projectedMonthlySavings), // Direct dollar amounts (enterprise scale)
+        projectedAnnualSavings: Math.round(rec.projectedAnnualSavings), // Direct dollar amounts
         riskLevel: rec.riskLevel?.toString() || '10',
         status: 'pending'
       }));
@@ -262,14 +262,14 @@ RESOURCE:
 - ID: ${resource.resourceId}
 - Type: ${resource.resourceType}
 - Current Config: ${JSON.stringify(resource.currentConfig)}
-- Monthly Cost: $${(resource.monthlyCost || 0) / 1000}
+- Monthly Cost: $${(resource.monthlyCost || 0)}
 - Utilization: ${JSON.stringify(resource.utilizationMetrics)}
 
 RECOMMENDATION:
 - Type: ${recommendation.type}
 - Current: ${recommendation.currentConfig}
 - Recommended: ${recommendation.recommendedConfig}
-- Projected Savings: $${recommendation.projectedMonthlySavings / 1000}/month
+- Projected Savings: $${recommendation.projectedMonthlySavings}/month
 - Risk Level: ${recommendation.riskLevel}%
 
 Explain in 2-3 sentences why this optimization is recommended and what the business impact would be.`;

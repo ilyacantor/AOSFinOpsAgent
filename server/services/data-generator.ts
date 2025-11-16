@@ -60,7 +60,7 @@ export class DataGenerator {
           networkIn: 1024.5,
           networkOut: 2048.1
         }),
-        monthlyCost: 245760, // $245.76 * 1000
+        monthlyCost: 245760, // $245,760/month (enterprise scale)
         tags: JSON.stringify({
           Environment: 'production',
           Team: 'backend',
@@ -83,7 +83,7 @@ export class DataGenerator {
           networkIn: 512.3,
           networkOut: 1024.7
         }),
-        monthlyCost: 67320, // $67.32 * 1000
+        monthlyCost: 67320, // $67,320/month (enterprise scale)
         tags: JSON.stringify({
           Environment: 'development',
           Team: 'frontend',
@@ -106,7 +106,7 @@ export class DataGenerator {
           networkIn: 256.1,
           networkOut: 512.3
         }),
-        monthlyCost: 501120, // $501.12 * 1000
+        monthlyCost: 501120, // $501,120/month (enterprise scale)
         tags: JSON.stringify({
           Environment: 'production',
           Team: 'data',
@@ -133,7 +133,7 @@ export class DataGenerator {
           readLatency: 0.002,
           writeLatency: 0.005
         }),
-        monthlyCost: 412500, // $412.50 * 1000
+        monthlyCost: 412500, // $412,500/month (enterprise scale)
         tags: JSON.stringify({
           Environment: 'production',
           Team: 'backend',
@@ -156,7 +156,7 @@ export class DataGenerator {
           readLatency: 0.001,
           writeLatency: 0.003
         }),
-        monthlyCost: 89250, // $89.25 * 1000
+        monthlyCost: 89250, // $89,250/month (enterprise scale)
         tags: JSON.stringify({
           Environment: 'development',
           Team: 'backend',
@@ -182,7 +182,7 @@ export class DataGenerator {
           putRequests: 5000,
           dataTransferOut: 100.5
         }),
-        monthlyCost: 57380, // $57.38 * 1000
+        monthlyCost: 57380, // $57,380/month (enterprise scale)
         tags: JSON.stringify({
           Environment: 'production',
           Team: 'devops',
@@ -204,7 +204,7 @@ export class DataGenerator {
           putRequests: 1000,
           dataTransferOut: 1500.2
         }),
-        monthlyCost: 23670, // $23.67 * 1000
+        monthlyCost: 23670, // $23,670/month (enterprise scale)
         tags: JSON.stringify({
           Environment: 'production',
           Team: 'frontend',
@@ -229,7 +229,7 @@ export class DataGenerator {
           targetResponseTime: 0.045,
           healthyTargets: 3
         }),
-        monthlyCost: 22500, // $22.50 * 1000
+        monthlyCost: 22500, // $22,500/month (enterprise scale)
         tags: JSON.stringify({
           Environment: 'production',
           Team: 'devops',
@@ -242,6 +242,7 @@ export class DataGenerator {
 
     for (const resource of allResources) {
       const created = await this.storage.createAwsResource({
+        tenantId: SYSTEM_TENANT_ID,
         ...resource,
         lastAnalyzed: new Date()
       }, SYSTEM_TENANT_ID);
@@ -270,9 +271,10 @@ export class DataGenerator {
         const cost = baseCost * (1 + variation);
         
         await this.storage.createCostReport({
+          tenantId: SYSTEM_TENANT_ID,
           reportDate,
           serviceCategory: service,
-          cost: Math.round(cost * 1000), // Multiply by 1000, no pennies
+          cost: Math.round(cost), // Direct dollar amounts (enterprise scale)
           usage: this.generateUsageForService(service),
           usageType: this.getUsageTypeForService(service),
           region: ['us-east-1', 'us-west-2', 'eu-west-1'][Math.floor(Math.random() * 3)]
@@ -283,18 +285,18 @@ export class DataGenerator {
 
   private getBaseCostForService(service: string): number {
     const baseCosts: { [key: string]: number } = {
-      'EC2-Instance': 814.0,
-      'RDS': 501.75,
-      'S3': 81.05,
-      'ELB': 22.50,
-      'CloudWatch': 15.25,
-      'Route53': 12.00,
-      'CloudFront': 45.30,
-      'Lambda': 8.75,
-      'EBS': 125.40,
-      'Data Transfer': 89.60
+      'EC2-Instance': 814000, // $814k/month (enterprise scale)
+      'RDS': 501750, // $501.75k/month
+      'S3': 81050, // $81k/month
+      'ELB': 22500, // $22.5k/month
+      'CloudWatch': 15250, // $15.25k/month
+      'Route53': 12000, // $12k/month
+      'CloudFront': 45300, // $45.3k/month
+      'Lambda': 8750, // $8.75k/month
+      'EBS': 125400, // $125.4k/month
+      'Data Transfer': 89600 // $89.6k/month
     };
-    return baseCosts[service] || 50.0;
+    return baseCosts[service] || 50000; // Default $50k/month
   }
 
   private generateUsageForService(service: string): string {
@@ -342,6 +344,7 @@ export class DataGenerator {
 
     if (overProvisionedEC2) {
       recommendations.push({
+        tenantId: SYSTEM_TENANT_ID,
         resourceId: overProvisionedEC2.resourceId,
         type: 'resize',
         priority: 'high',
@@ -354,8 +357,8 @@ export class DataGenerator {
           memory: '8 GiB',
           storage: 'EBS-optimized'
         }),
-        projectedMonthlySavings: 250560, // $250.56 * 1000
-        projectedAnnualSavings: 250560 * 12, // $250.56 * 12 * 1000
+        projectedMonthlySavings: 250560, // $250,560/month (enterprise scale)
+        projectedAnnualSavings: 250560 * 12, // $3M/year
         riskLevel: 16,
         status: 'pending'
       });
@@ -369,6 +372,7 @@ export class DataGenerator {
 
     if (s3Bucket) {
       recommendations.push({
+        tenantId: SYSTEM_TENANT_ID,
         resourceId: s3Bucket.resourceId,
         type: 'storage-class',
         priority: 'medium',
@@ -381,8 +385,8 @@ export class DataGenerator {
           objectCount: 125000,
           versioning: true
         }),
-        projectedMonthlySavings: 17210, // $17.21 * 1000
-        projectedAnnualSavings: 17210 * 12, // $17.21 * 12 * 1000
+        projectedMonthlySavings: 17210, // $17,210/month (enterprise scale)
+        projectedAnnualSavings: 17210 * 12, // $206k/year
         riskLevel: 5,
         status: 'pending'
       });
@@ -396,6 +400,7 @@ export class DataGenerator {
 
     if (prodEC2) {
       recommendations.push({
+        tenantId: SYSTEM_TENANT_ID,
         resourceId: prodEC2.resourceId,
         type: 'reserved-instance',
         priority: 'medium',
@@ -407,8 +412,8 @@ export class DataGenerator {
           pricingModel: 'reserved-1year',
           paymentOption: 'partial-upfront'
         }),
-        projectedMonthlySavings: 73680, // $73.68 * 1000
-        projectedAnnualSavings: 73680 * 12, // $73.68 * 12 * 1000
+        projectedMonthlySavings: 73680, // $73,680/month (enterprise scale)
+        projectedAnnualSavings: 73680 * 12, // $884k/year
         riskLevel: 3,
         status: 'pending'
       });
@@ -429,6 +434,7 @@ export class DataGenerator {
       const potentialSavings = totalDevCost * 0.65; // Assume 65% savings by stopping after hours
 
       recommendations.push({
+        tenantId: SYSTEM_TENANT_ID,
         resourceId: 'dev-environment-group',
         type: 'terminate',
         priority: 'critical',
@@ -443,8 +449,8 @@ export class DataGenerator {
           autoShutdown: true,
           resources: devResources.length
         }),
-        projectedMonthlySavings: Math.round(potentialSavings * 1000), // Multiply by 1000, no pennies
-        projectedAnnualSavings: Math.round(potentialSavings * 12 * 1000), // Annual * 1000
+        projectedMonthlySavings: Math.round(potentialSavings), // Direct dollar amounts (enterprise scale)
+        projectedAnnualSavings: Math.round(potentialSavings * 12), // Annual savings
         riskLevel: 8,
         status: 'pending'
       });
@@ -458,6 +464,7 @@ export class DataGenerator {
 
     if (underutilizedRDS) {
       recommendations.push({
+        tenantId: SYSTEM_TENANT_ID,
         resourceId: underutilizedRDS.resourceId,
         type: 'resize',
         priority: 'low',
@@ -470,8 +477,8 @@ export class DataGenerator {
           allocatedStorage: 50,
           storageType: 'gp2'
         }),
-        projectedMonthlySavings: 63180, // $63.18 * 1000
-        projectedAnnualSavings: 63180 * 12, // $63.18 * 12 * 1000
+        projectedMonthlySavings: 63180, // $63,180/month (enterprise scale)
+        projectedAnnualSavings: 63180 * 12, // $758k/year
         riskLevel: 12,
         status: 'pending'
       });
@@ -490,6 +497,7 @@ export class DataGenerator {
   private async generateOptimizationHistory() {
     const historyItems = [
       {
+        tenantId: SYSTEM_TENANT_ID,
         id: nanoid(),
         recommendationId: 'completed-1',
         executedBy: 'system',
@@ -504,10 +512,11 @@ export class DataGenerator {
           vcpus: 4,
           memory: '16 GiB'
         }),
-        actualSavings: 142500, // $142.50 * 1000
+        actualSavings: 142500, // $142,500 savings (enterprise scale)
         status: 'success'
       },
       {
+        tenantId: SYSTEM_TENANT_ID,
         id: nanoid(),
         recommendationId: 'completed-2',
         executedBy: 'john.davis@company.com',
@@ -520,10 +529,11 @@ export class DataGenerator {
           storageClass: 'INTELLIGENT_TIERING',
           autoTiering: true
         }),
-        actualSavings: 89320, // $89.32 * 1000
+        actualSavings: 89320, // $89,320 savings (enterprise scale)
         status: 'success'
       },
       {
+        tenantId: SYSTEM_TENANT_ID,
         id: nanoid(),
         recommendationId: 'completed-3',
         executedBy: 'system',
@@ -536,10 +546,11 @@ export class DataGenerator {
           schedule: 'weekdays 8 AM - 8 PM',
           instances: 5
         }),
-        actualSavings: 425680, // $425.68 * 1000
+        actualSavings: 425680, // $425,680 savings (enterprise scale)
         status: 'success'
       },
       {
+        tenantId: SYSTEM_TENANT_ID,
         id: nanoid(),
         recommendationId: 'failed-1',
         executedBy: 'system',
