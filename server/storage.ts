@@ -102,7 +102,8 @@ export interface IStorage {
   getMetricsSummary(tenantId: string): Promise<{
     monthlySpend: number;
     ytdSpend: number;
-    identifiedSavingsAwaitingApproval: number;
+    autonomousSavingsPending: number;
+    hitlSavingsAwaiting: number;
     realizedSavingsYTD: number;
     wastePercentOptimizedYTD: number;
     monthlySpendChange: number;
@@ -624,7 +625,8 @@ export class DatabaseStorage implements IStorage {
   async getMetricsSummary(tenantId: string): Promise<{
     monthlySpend: number;
     ytdSpend: number;
-    identifiedSavingsAwaitingApproval: number;
+    autonomousSavingsPending: number;
+    hitlSavingsAwaiting: number;
     realizedSavingsYTD: number;
     wastePercentOptimizedYTD: number;
     monthlySpendChange: number;
@@ -736,9 +738,8 @@ export class DatabaseStorage implements IStorage {
       priorYtdSpend = ytdSpend * 0.90;
     }
 
-    // Get identified savings awaiting approval (pending + approved recommendations)
-    // Use monthly savings for consistency with other monthly metrics
-    const [pendingSavingsResult] = await db
+    // Get autonomous savings pending (autonomous + pending only)
+    const [autonomousSavingsResult] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
       })
@@ -746,7 +747,22 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(recommendations.tenantId, tenantId),
-          sql`${recommendations.status} IN ('pending', 'approved')`
+          eq(recommendations.status, 'pending'),
+          eq(recommendations.executionMode, 'autonomous')
+        )
+      );
+
+    // Get HITL savings awaiting (HITL + pending or approved)
+    const [hitlSavingsResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
+      })
+      .from(recommendations)
+      .where(
+        and(
+          eq(recommendations.tenantId, tenantId),
+          sql`${recommendations.status} IN ('pending', 'approved')`,
+          eq(recommendations.executionMode, 'hitl')
         )
       );
 
@@ -775,7 +791,8 @@ export class DatabaseStorage implements IStorage {
       );
 
     // Calculate values
-    const identifiedSavingsAwaitingApproval = Number(pendingSavingsResult.total);
+    const autonomousSavingsPending = Number(autonomousSavingsResult.total);
+    const hitlSavingsAwaiting = Number(hitlSavingsResult.total);
     const realizedSavingsYTD = Number(realizedSavingsResult.total);
 
     // Calculate percent changes
@@ -795,7 +812,8 @@ export class DatabaseStorage implements IStorage {
     return {
       monthlySpend,
       ytdSpend,
-      identifiedSavingsAwaitingApproval,
+      autonomousSavingsPending,
+      hitlSavingsAwaiting,
       realizedSavingsYTD,
       wastePercentOptimizedYTD: Math.round(wastePercentOptimizedYTD * 10) / 10,
       monthlySpendChange: Math.round(monthlySpendChange * 10) / 10,

@@ -56,7 +56,8 @@ export default function ExecutiveDashboard() {
   // Calculate metrics
   const monthlySpend = metricsSummary?.monthlySpend || 0;
   const ytdSpend = metricsSummary?.ytdSpend || 0;
-  const identifiedSavings = metricsSummary?.identifiedSavingsAwaitingApproval || 0;
+  const autonomousSavings = metricsSummary?.autonomousSavingsPending || 0;
+  const hitlSavings = metricsSummary?.hitlSavingsAwaiting || 0;
   const realizedSavings = metricsSummary?.realizedSavingsYTD || 0;
   const wastePercent = metricsSummary?.wastePercentOptimizedYTD || 0;
   const monthlySpendChange = metricsSummary?.monthlySpendChange || 0;
@@ -199,15 +200,29 @@ export default function ExecutiveDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-identified-savings">
+            <Card className="bg-[#1B1E23] border-emerald-500/20" data-testid="card-autonomous-savings">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-400">Identified Savings Awaiting Approval</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-400">Autonomous Savings</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col justify-center">
-                  <div className="text-2xl font-bold text-green-500 mb-2" data-testid="identified-savings-value">{formatCurrency(identifiedSavings)}</div>
-                  <div className="text-xs text-[#0BCAD9]">
-                    {recommendations.filter((r: any) => r.status === 'pending' || r.status === 'approved').length} recommendations
+                  <div className="text-2xl font-bold text-emerald-500 mb-2" data-testid="autonomous-savings-value">{formatCurrency(autonomousSavings)}</div>
+                  <div className="text-xs text-emerald-400">
+                    Auto-execute pending
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-[#1B1E23] border-amber-500/20" data-testid="card-hitl-savings">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-gray-400">Awaiting HITL</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col justify-center">
+                  <div className="text-2xl font-bold text-amber-500 mb-2" data-testid="hitl-savings-value">{formatCurrency(hitlSavings)}</div>
+                  <div className="text-xs text-amber-400">
+                    Needs approval
                   </div>
                 </div>
               </CardContent>
@@ -392,13 +407,13 @@ export default function ExecutiveDashboard() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Projected Annual Savings:</span>
                       <span className="text-green-500 font-semibold">
-                        {formatCurrency((identifiedSavings * 12 * optimizationAdoption[0]) / 100)}
+                        {formatCurrency(((autonomousSavings + hitlSavings) * 12 * optimizationAdoption[0]) / 100)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Optimized Annual Spend:</span>
                       <span className="text-[#0BCAD9] font-semibold">
-                        {formatCurrency(monthlySpend * 12 - (identifiedSavings * 12 * optimizationAdoption[0]) / 100)}
+                        {formatCurrency(monthlySpend * 12 - ((autonomousSavings + hitlSavings) * 12 * optimizationAdoption[0]) / 100)}
                       </span>
                     </div>
                   </div>
