@@ -19,8 +19,8 @@ export class GeminiAIService {
     }
     
     this.genAI = new GoogleGenerativeAI(apiKey);
-    // Use Gemini 2.5 Flash for optimal speed
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // Use Gemini 2.0 Flash Experimental for optimal speed
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
   }
 
   async analyzeResourcesForOptimization(resources: AwsResource[], historicalMetrics?: any): Promise<any[]> {
