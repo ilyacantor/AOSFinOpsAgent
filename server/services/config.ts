@@ -333,6 +333,53 @@ export class ConfigService {
     return true;
   }
 
+  async determineExecutionMode(recommendation: {
+    type: string;
+    riskLevel: number;
+    projectedMonthlySavings: number;
+  }): Promise<{
+    executionMode: 'autonomous' | 'hitl';
+    autoExecute: boolean;
+    reason: string;
+  }> {
+    const canExecute = await this.canExecuteAutonomously(recommendation);
+    
+    if (canExecute) {
+      return {
+        executionMode: 'autonomous',
+        autoExecute: true,
+        reason: 'Meets all criteria for autonomous execution'
+      };
+    } else {
+      const config = await this.getAgentConfig();
+      
+      let reason = 'Requires human approval: ';
+      const reasons: string[] = [];
+      
+      if (!config.autonomousMode) {
+        reasons.push('Autonomous mode disabled');
+      }
+      if (recommendation.riskLevel > config.maxAutonomousRiskLevel) {
+        reasons.push(`Risk level ${recommendation.riskLevel} exceeds max ${config.maxAutonomousRiskLevel}`);
+      }
+      const annualizedSavings = recommendation.projectedMonthlySavings * 12;
+      if (annualizedSavings > config.approvalRequiredAboveSavings) {
+        reasons.push(`Savings $${(annualizedSavings/1000).toFixed(0)}K exceeds threshold $${(config.approvalRequiredAboveSavings/1000).toFixed(0)}K`);
+      }
+      if (!config.autoExecuteTypes.includes(recommendation.type)) {
+        reasons.push(`Type '${recommendation.type}' not in auto-execute list`);
+      }
+      
+      reason += reasons.join(', ');
+      
+      return {
+        executionMode: 'hitl',
+        autoExecute: false,
+        reason
+      };
+    }
+  }
+
   private async refreshCache(): Promise<void> {
     // Only refresh cache if it's empty or periodically
     if (this.configCache.size === 0) {
