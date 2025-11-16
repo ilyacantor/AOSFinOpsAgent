@@ -100,7 +100,7 @@ export class SchedulerService {
     const config = await configService.getAgentConfig();
     
     if (config.prodMode) {
-      console.log('🚀 [PROD MODE ON] Running AI-powered analysis with Gemini 2.0 Flash + RAG...');
+      console.log('🚀 [PROD MODE ON] Running AI-powered analysis with Gemini 2.5 Flash + RAG...');
       await this.analyzeWithAI();
     } else {
       console.log('⚙️ [PROD MODE OFF] Running heuristics-based analysis...');
@@ -248,14 +248,14 @@ export class SchedulerService {
     
     try {
       console.log('⚡ Prod Mode (RAG) triggered – auto-revert in 5 minutes');
-      console.log('🤖 Starting AI-powered resource analysis with Gemini 2.0 Flash...');
+      console.log('🤖 Starting AI-powered resource analysis with Gemini 2.5 Flash...');
       
       // Create AI mode history entry to track this run
       const historyEntry = await storage.createAiModeHistory({
         tenantId: SYSTEM_TENANT_ID,
         startTime,
         status: 'running',
-        summary: 'AI-powered analysis with Gemini 2.0 Flash + Pinecone RAG',
+        summary: 'AI-powered analysis with Gemini 2.5 Flash + Pinecone RAG',
         triggeredBy: 'user'
       }, SYSTEM_TENANT_ID);
       historyId = historyEntry.id;

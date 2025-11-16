@@ -109,7 +109,7 @@ export default function AgentConfig() {
     onSuccess: () => {
       toast({
         title: "AI Analysis Started",
-        description: "AI-powered analysis with Gemini 2.0 Flash + RAG is running. New recommendations will appear shortly.",
+        description: "AI-powered analysis with Gemini 2.5 Flash + RAG is running. New recommendations will appear shortly.",
       });
       // Invalidate queries to refresh recommendations when analysis completes
       setTimeout(() => {
@@ -304,7 +304,7 @@ export default function AgentConfig() {
               </Label>
               <p className="text-sm text-muted-foreground">
                 {localConfig.prodMode 
-                  ? "🚀 AI-powered analysis with Gemini 2.0 Flash + RAG (learns from historical optimizations)" 
+                  ? "🚀 AI-powered analysis with Gemini 2.5 Flash + RAG (learns from historical optimizations)" 
                   : "⚙️ Traditional heuristics-based analysis (rule-based thresholds)"
                 }
               </p>
@@ -323,7 +323,7 @@ export default function AgentConfig() {
               <Alert className="border-cyan-500/30 bg-cyan-950/10">
                 <Bot className="h-4 w-4 text-cyan-400" />
                 <AlertDescription>
-                  <strong>AI Mode Active.</strong> Using Gemini 2.0 Flash with Retrieval Augmented Generation (RAG) 
+                  <strong>AI Mode Active.</strong> Using Gemini 2.5 Flash with Retrieval Augmented Generation (RAG) 
                   to analyze resources based on historical optimization patterns and intelligent context analysis.
                 </AlertDescription>
               </Alert>
@@ -564,7 +564,7 @@ export default function AgentConfig() {
             <div>
               <p className="font-medium">Analysis Mode</p>
               <p className="text-muted-foreground">
-                {localConfig.prodMode ? "AI + RAG (Gemini 2.0 Flash)" : "Heuristics (Rule-based)"}
+                {localConfig.prodMode ? "AI + RAG (Gemini 2.5 Flash)" : "Heuristics (Rule-based)"}
               </p>
             </div>
             <div>
