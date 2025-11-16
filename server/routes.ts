@@ -691,7 +691,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const recommendation = await storage.getRecommendation(validatedData.recommendationId, tenantId);
       if (recommendation && req.body.status === 'approved') {
         const userRole = req.user?.role;
-        const highImpact = recommendation.projectedAnnualSavings > 100000000; // > $100k annual savings
+        const projectedAnnualSavings = (recommendation.projectedMonthlySavings || 0) * 12;
+        const highImpact = projectedAnnualSavings > 100000000; // > $100k annual savings
         
         if (highImpact && userRole !== 'admin' && userRole !== 'cfo' && userRole !== 'Head of Cloud Platform') {
           return res.status(403).json({ 
@@ -961,7 +962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           approvedRecommendations.push({
             id: recommendation.id,
             title: recommendation.title,
-            projectedAnnualSavings: recommendation.projectedAnnualSavings
+            projectedAnnualSavings: (recommendation.projectedMonthlySavings || 0) * 12
           });
 
           console.log(`Successfully approved recommendation: ${recommendation.title}`);
@@ -985,7 +986,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
-      const totalSavings = approvedRecommendations.reduce((sum, rec) => sum + Number(rec.projectedAnnualSavings), 0);
+      const totalSavings = approvedRecommendations.reduce((sum, rec) => sum + (rec.projectedAnnualSavings || 0), 0);
 
       res.json({
         message: `Successfully approved ${approvedRecommendations.length} of ${pendingRecommendations.length} pending recommendations`,
@@ -1277,6 +1278,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching AI mode history:", error);
       res.status(500).json({ error: "Failed to fetch AI mode history" });
+    }
+  });
+
+  // Get specific AI mode history with recommendations drill-down
+  app.get("/api/ai-mode-history/:id", ...authenticated, async (req, res) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(401).json({ error: 'Invalid authentication: missing tenant context' });
+      }
+
+      const { id } = req.params;
+      const data = await storage.getAiModeHistoryWithRecommendations(id, tenantId);
+      
+      if (!data) {
+        return res.status(404).json({ error: 'AI mode history not found' });
+      }
+
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching AI mode history details:", error);
+      res.status(500).json({ error: "Failed to fetch AI mode history details" });
     }
   });
 

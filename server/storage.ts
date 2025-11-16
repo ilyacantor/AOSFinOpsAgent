@@ -74,6 +74,21 @@ export interface IStorage {
   updateAiModeHistory(id: string, updates: Partial<InsertAiModeHistory>, tenantId: string): Promise<AiModeHistory | undefined>;
   getRecentAiModeHistory(limit: number, tenantId: string): Promise<AiModeHistory[]>;
   getAiModeHistory(id: string, tenantId: string): Promise<AiModeHistory | undefined>;
+  getAiModeHistoryWithRecommendations(id: string, tenantId: string): Promise<{
+    aiRun: AiModeHistory;
+    recommendations: Recommendation[];
+    savingsBreakdown: {
+      totalSavings: number;
+      averageSavings: number;
+      savingsByType: Record<string, number>;
+    };
+    executionModeCounts: {
+      autonomous: number;
+      hitl: number;
+      autonomousPercentage: number;
+      hitlPercentage: number;
+    };
+  } | undefined>;
 
   // Dashboard metrics
   getDashboardMetrics(tenantId: string): Promise<{
@@ -465,6 +480,72 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return history || undefined;
+  }
+
+  async getAiModeHistoryWithRecommendations(id: string, tenantId: string): Promise<{
+    aiRun: AiModeHistory;
+    recommendations: Recommendation[];
+    savingsBreakdown: {
+      totalSavings: number;
+      averageSavings: number;
+      savingsByType: Record<string, number>;
+    };
+    executionModeCounts: {
+      autonomous: number;
+      hitl: number;
+      autonomousPercentage: number;
+      hitlPercentage: number;
+    };
+  } | undefined> {
+    // Get the AI mode history record
+    const aiRun = await this.getAiModeHistory(id, tenantId);
+    if (!aiRun) {
+      return undefined;
+    }
+
+    // Get all recommendations linked to this AI run
+    const recs = await db
+      .select()
+      .from(recommendations)
+      .where(
+        and(
+          eq(recommendations.tenantId, tenantId),
+          eq(recommendations.aiModeHistoryId, id)
+        )
+      )
+      .orderBy(desc(recommendations.createdAt));
+
+    // Calculate savings breakdown
+    const totalSavings = recs.reduce((sum, rec) => sum + (rec.projectedMonthlySavings || 0), 0);
+    const averageSavings = recs.length > 0 ? Math.round(totalSavings / recs.length) : 0;
+    
+    // Group savings by type
+    const savingsByType: Record<string, number> = {};
+    recs.forEach(rec => {
+      const type = rec.type;
+      savingsByType[type] = (savingsByType[type] || 0) + (rec.projectedMonthlySavings || 0);
+    });
+
+    // Count execution modes
+    const autonomousCount = recs.filter(rec => rec.executionMode === 'autonomous').length;
+    const hitlCount = recs.filter(rec => rec.executionMode === 'hitl').length;
+    const total = recs.length;
+
+    return {
+      aiRun,
+      recommendations: recs,
+      savingsBreakdown: {
+        totalSavings,
+        averageSavings,
+        savingsByType
+      },
+      executionModeCounts: {
+        autonomous: autonomousCount,
+        hitl: hitlCount,
+        autonomousPercentage: total > 0 ? Math.round((autonomousCount / total) * 100) : 0,
+        hitlPercentage: total > 0 ? Math.round((hitlCount / total) * 100) : 0
+      }
+    };
   }
 
   async getDashboardMetrics(tenantId: string): Promise<{

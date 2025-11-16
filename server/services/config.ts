@@ -278,27 +278,58 @@ export class ConfigService {
   }): Promise<boolean> {
     const config = await this.getAgentConfig();
     
-    // Must be in autonomous mode
+    // CRITICAL: Check autonomous mode FIRST - if disabled, ALWAYS return false
     if (!config.autonomousMode) {
+      logger.info('Autonomous execution blocked: Autonomous Mode is OFF', {
+        recommendationType: recommendation.type,
+        riskLevel: recommendation.riskLevel,
+        projectedSavings: recommendation.projectedMonthlySavings,
+        decision: 'REQUIRES_APPROVAL'
+      });
       return false;
     }
 
     // Check risk level
     if (recommendation.riskLevel > config.maxAutonomousRiskLevel) {
+      logger.info('Autonomous execution blocked: Risk level too high', {
+        recommendationType: recommendation.type,
+        riskLevel: recommendation.riskLevel,
+        maxAllowed: config.maxAutonomousRiskLevel,
+        projectedSavings: recommendation.projectedMonthlySavings,
+        decision: 'REQUIRES_APPROVAL'
+      });
       return false;
     }
 
     // Check savings threshold (monthly savings * 12 for annual comparison)
     const annualizedSavings = recommendation.projectedMonthlySavings * 12;
     if (annualizedSavings > config.approvalRequiredAboveSavings) {
+      logger.info('Autonomous execution blocked: Savings threshold exceeded', {
+        recommendationType: recommendation.type,
+        annualizedSavings: annualizedSavings,
+        threshold: config.approvalRequiredAboveSavings,
+        decision: 'REQUIRES_APPROVAL'
+      });
       return false;
     }
 
     // Check if recommendation type is allowed for autonomous execution
     if (!config.autoExecuteTypes.includes(recommendation.type)) {
+      logger.info('Autonomous execution blocked: Recommendation type not in allow list', {
+        recommendationType: recommendation.type,
+        allowedTypes: config.autoExecuteTypes,
+        decision: 'REQUIRES_APPROVAL'
+      });
       return false;
     }
 
+    // All checks passed - approve for autonomous execution
+    logger.info('Autonomous execution approved', {
+      recommendationType: recommendation.type,
+      riskLevel: recommendation.riskLevel,
+      projectedSavings: recommendation.projectedMonthlySavings,
+      decision: 'AUTO_EXECUTE'
+    });
     return true;
   }
 

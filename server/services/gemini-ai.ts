@@ -23,7 +23,7 @@ export class GeminiAIService {
     this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
   }
 
-  async analyzeResourcesForOptimization(resources: AwsResource[], historicalMetrics?: any): Promise<any[]> {
+  async analyzeResourcesForOptimization(resources: AwsResource[], aiModeHistoryId?: string, historicalMetrics?: any): Promise<any[]> {
     // RAG: Retrieve historical context for better AI recommendations
     const historicalContext = await this.retrieveHistoricalContext();
     
@@ -35,7 +35,7 @@ export class GeminiAIService {
       const text = response.text();
       
       // Parse the AI response into structured recommendations
-      const recommendations = this.parseRecommendations(text, resources);
+      const recommendations = this.parseRecommendations(text, resources, aiModeHistoryId);
       
       // Invalidate cache after generating new recommendations (for fresh RAG on next run)
       this.invalidateCache();
@@ -218,7 +218,7 @@ IMPORTANT RULES:
 Generate recommendations now:`;
   }
 
-  private parseRecommendations(aiResponse: string, resources: AwsResource[]): any[] {
+  private parseRecommendations(aiResponse: string, resources: AwsResource[], aiModeHistoryId?: string): any[] {
     try {
       // Extract JSON from the response (AI might wrap it in markdown)
       const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
@@ -230,22 +230,40 @@ Generate recommendations now:`;
       const recommendations = JSON.parse(jsonMatch[0]);
       
       // Validate and normalize recommendations
-      return recommendations.map((rec: any) => ({
-        resourceId: rec.resourceId,
-        type: rec.type || 'resize',
-        priority: rec.priority || 'medium',
-        title: rec.title || 'AI-Generated Optimization',
-        description: rec.description || rec.reasoning || '',
-        currentConfig: typeof rec.currentConfig === 'string' 
-          ? rec.currentConfig 
-          : JSON.stringify(rec.currentConfig),
-        recommendedConfig: typeof rec.recommendedConfig === 'string'
-          ? rec.recommendedConfig
-          : JSON.stringify(rec.recommendedConfig),
-        projectedMonthlySavings: Math.round(rec.projectedMonthlySavings), // Direct dollar amounts (enterprise scale)
-        riskLevel: rec.riskLevel?.toString() || '10',
-        status: 'pending'
-      }));
+      return recommendations.map((rec: any) => {
+        // Find the corresponding resource to get its monthly cost
+        const resource = resources.find(r => r.resourceId === rec.resourceId);
+        const resourceMonthlyCost = resource?.monthlyCost || 0;
+        const projectedMonthlySavings = Math.round(rec.projectedMonthlySavings);
+        
+        // Calculate savings percentage
+        const savingsPercentage = resourceMonthlyCost > 0 
+          ? Math.round((projectedMonthlySavings / resourceMonthlyCost) * 100 * 10) / 10 // Round to 1 decimal
+          : 0;
+        
+        return {
+          resourceId: rec.resourceId,
+          type: rec.type || 'resize',
+          priority: rec.priority || 'medium',
+          title: rec.title || 'AI-Generated Optimization',
+          description: rec.description || rec.reasoning || '',
+          currentConfig: typeof rec.currentConfig === 'string' 
+            ? rec.currentConfig 
+            : JSON.stringify(rec.currentConfig),
+          recommendedConfig: typeof rec.recommendedConfig === 'string'
+            ? rec.recommendedConfig
+            : JSON.stringify(rec.recommendedConfig),
+          projectedMonthlySavings: projectedMonthlySavings,
+          riskLevel: rec.riskLevel?.toString() || '10',
+          status: 'pending',
+          aiModeHistoryId: aiModeHistoryId || null,
+          calculationMetadata: {
+            resourceMonthlyCost: resourceMonthlyCost,
+            savingsPercentage: savingsPercentage,
+            methodology: 'AI-powered analysis using Gemini 2.0 Flash with RAG (Pinecone vector database for historical context)'
+          }
+        };
+      });
     } catch (error) {
       console.error("Error parsing AI recommendations:", error);
       console.error("AI Response:", aiResponse);

@@ -276,7 +276,8 @@ export class SchedulerService {
       console.log(`Analyzing ${allResources.length} resources with AI...`);
       
       // Use Gemini AI to analyze resources and generate recommendations
-      const aiRecommendations = await geminiAI.analyzeResourcesForOptimization(allResources);
+      // Pass the history ID to link recommendations to this AI run
+      const aiRecommendations = await geminiAI.analyzeResourcesForOptimization(allResources, historyId);
       
       console.log(`🎯 AI generated ${aiRecommendations.length} recommendations`);
       
@@ -529,7 +530,7 @@ export class SchedulerService {
         const cpuUtil = metrics?.avgCpuUtilization || metrics?.cpuUtilization || 0;
         const memUtil = metrics?.avgMemoryUtilization || metrics?.memoryUtilization || 0;
         
-        // Create recommendation
+        // Create recommendation with calculation metadata
         const recommendation = await storage.createRecommendation({
           tenantId: SYSTEM_TENANT_ID,
           resourceId: resource.resourceId,
@@ -541,7 +542,12 @@ export class SchedulerService {
           recommendedConfig: this.generateRecommendedConfig(recType, resource),
           projectedMonthlySavings: monthlySavings,
           riskLevel: riskLevel === 'low' ? 3 : (riskLevel === 'medium' ? 7 : 9),
-          executionMode: executionMode
+          executionMode: executionMode,
+          calculationMetadata: {
+            resourceMonthlyCost: resourceMonthlyCost,
+            savingsPercentage: savingsPercentage * 100, // Convert to percentage
+            methodology: 'Heuristics-based analysis using utilization patterns and cost data'
+          }
         }, SYSTEM_TENANT_ID);
         
         newRecommendationsCount++;

@@ -105,6 +105,7 @@ export const costReports = pgTable("cost_reports", {
 export const recommendations = pgTable("recommendations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull(),
+  aiModeHistoryId: varchar("ai_mode_history_id"), // Links to the AI run that generated this recommendation
   resourceId: text("resource_id").notNull(),
   type: text("type").notNull(), // resize, terminate, storage-class, reserved-instance
   priority: text("priority").notNull(), // critical, high, medium, low
@@ -113,6 +114,7 @@ export const recommendations = pgTable("recommendations", {
   currentConfig: jsonb("current_config").notNull(),
   recommendedConfig: jsonb("recommended_config").notNull(),
   projectedMonthlySavings: bigint("projected_monthly_savings", { mode: "number" }).notNull(), // Direct dollar amounts (enterprise scale)
+  calculationMetadata: jsonb("calculation_metadata"), // Stores resource cost, savings %, methodology for transparency
   riskLevel: integer("risk_level").default(50), // percentage value 1-100, defaults to 50 (medium risk)
   executionMode: text("execution_mode").notNull().default("autonomous"), // autonomous, hitl
   status: text("status").notNull().default("pending"), // pending, approved, rejected, executed
@@ -120,6 +122,7 @@ export const recommendations = pgTable("recommendations", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   tenantIdStatusIdx: index("idx_recommendations_tenant_id_status").on(table.tenantId, table.status),
+  tenantIdAiHistoryIdx: index("idx_recommendations_tenant_id_ai_history").on(table.tenantId, table.aiModeHistoryId),
 }));
 
 export const optimizationHistory = pgTable("optimization_history", {
