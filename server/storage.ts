@@ -752,7 +752,7 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
-    // Get HITL savings awaiting (HITL + pending or approved)
+    // Get HITL savings awaiting (HITL + pending only - needs human approval)
     const [hitlSavingsResult] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
@@ -761,7 +761,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(recommendations.tenantId, tenantId),
-          sql`${recommendations.status} IN ('pending', 'approved')`,
+          eq(recommendations.status, 'pending'),
           eq(recommendations.executionMode, 'hitl')
         )
       );
