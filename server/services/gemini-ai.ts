@@ -201,7 +201,6 @@ RESPONSE FORMAT (JSON array):
     "currentConfig": {...},
     "recommendedConfig": {...},
     "projectedMonthlySavings": 0,
-    "projectedAnnualSavings": 0,
     "riskLevel": "0-100",
     "reasoning": "Why this optimization makes sense for this specific resource"
   }
@@ -244,7 +243,6 @@ Generate recommendations now:`;
           ? rec.recommendedConfig
           : JSON.stringify(rec.recommendedConfig),
         projectedMonthlySavings: Math.round(rec.projectedMonthlySavings), // Direct dollar amounts (enterprise scale)
-        projectedAnnualSavings: Math.round(rec.projectedAnnualSavings), // Direct dollar amounts
         riskLevel: rec.riskLevel?.toString() || '10',
         status: 'pending'
       }));

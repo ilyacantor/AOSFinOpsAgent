@@ -142,7 +142,6 @@ export class SchedulerService {
                 numberOfNodes: analysis.recommendation.recommendedNodes
               },
               projectedMonthlySavings: Number(analysis.recommendation.projectedSavings.monthly),
-              projectedAnnualSavings: Number(analysis.recommendation.projectedSavings.annual),
               riskLevel: analysis.recommendation.avgUtilization < 25 ? 5 : 10
             }, SYSTEM_TENANT_ID);
 
@@ -150,7 +149,7 @@ export class SchedulerService {
             const canExecuteAutonomously = await configService.canExecuteAutonomously({
               type: recommendation.type,
               riskLevel: recommendation.riskLevel ?? 0,
-              projectedAnnualSavings: recommendation.projectedAnnualSavings
+              projectedMonthlySavings: recommendation.projectedMonthlySavings
             });
 
             if (canExecuteAutonomously) {
@@ -200,7 +199,6 @@ export class SchedulerService {
                 description: recommendation.description,
                 resourceId: recommendation.resourceId,
                 projectedMonthlySavings: recommendation.projectedMonthlySavings,
-                projectedAnnualSavings: recommendation.projectedAnnualSavings,
                 priority: recommendation.priority,
                 recommendationId: recommendation.id
               });
@@ -297,7 +295,7 @@ export class SchedulerService {
           const canExecuteAutonomously = await configService.canExecuteAutonomously({
             type: recommendation.type,
             riskLevel: recommendation.riskLevel ?? 0,
-            projectedAnnualSavings: recommendation.projectedAnnualSavings
+            projectedMonthlySavings: recommendation.projectedMonthlySavings
           });
 
           if (canExecuteAutonomously) {
@@ -339,7 +337,6 @@ export class SchedulerService {
               description: recommendation.description,
               resourceId: recommendation.resourceId,
               projectedMonthlySavings: recommendation.projectedMonthlySavings,
-              projectedAnnualSavings: recommendation.projectedAnnualSavings,
               priority: recommendation.priority,
               recommendationId: recommendation.id
             });
@@ -352,7 +349,7 @@ export class SchedulerService {
       // Update AI mode history with results
       if (historyId) {
         const totalSavings = aiRecommendations.reduce((sum, rec) => 
-          sum + (rec.projectedAnnualSavings || 0), 0
+          sum + (rec.projectedMonthlySavings || 0), 0
         );
         
         await storage.updateAiModeHistory(historyId, {
@@ -511,10 +508,22 @@ export class SchedulerService {
         const riskLevel = riskRandom < 0.80 ? 'low' : (riskRandom < 0.90 ? 'medium' : 'high');
         const executionMode = riskLevel === 'low' ? 'autonomous' : 'hitl';
         
-        // Generate enterprise-scale savings ($250k-$3M monthly)
-        const baseSavings = Math.floor(Math.random() * 2750000) + 250000; // $250k-$3M
-        const monthlySavings = baseSavings; // Direct dollar amounts (enterprise scale)
-        const annualSavings = monthlySavings * 12;
+        // Calculate savings based on actual resource cost
+        const resourceMonthlyCost = resource.monthlyCost || 100000; // Fallback to $100k if cost missing
+        let savingsPercentage = 0;
+        
+        if (recType === 'rightsizing') {
+          // Rightsizing: 30-60% savings (downsize underutilized resources)
+          savingsPercentage = 0.30 + Math.random() * 0.30; // 30-60%
+        } else if (recType === 'scheduling') {
+          // Scheduling: 50-70% savings (shutdown off-hours)
+          savingsPercentage = 0.50 + Math.random() * 0.20; // 50-70%
+        } else {
+          // Storage-tiering: 20-40% savings (move to cold storage)
+          savingsPercentage = 0.20 + Math.random() * 0.20; // 20-40%
+        }
+        
+        const monthlySavings = Math.round(resourceMonthlyCost * savingsPercentage);
         
         const metrics = resource.utilizationMetrics as any;
         const cpuUtil = metrics?.avgCpuUtilization || metrics?.cpuUtilization || 0;
@@ -527,17 +536,16 @@ export class SchedulerService {
           type: recType,
           priority: riskLevel === 'high' ? 'critical' : (riskLevel === 'medium' ? 'high' : 'medium'),
           title: this.generateRecommendationTitle(recType, resource.resourceType),
-          description: this.generateRecommendationDescription(recType, cpuUtil, memUtil, baseSavings),
+          description: this.generateRecommendationDescription(recType, cpuUtil, memUtil, monthlySavings),
           currentConfig: resource.currentConfig as any,
           recommendedConfig: this.generateRecommendedConfig(recType, resource),
           projectedMonthlySavings: monthlySavings,
-          projectedAnnualSavings: annualSavings,
           riskLevel: riskLevel === 'low' ? 3 : (riskLevel === 'medium' ? 7 : 9),
           executionMode: executionMode
         }, SYSTEM_TENANT_ID);
         
         newRecommendationsCount++;
-        totalSavings += annualSavings;
+        totalSavings += monthlySavings;
         
         // Count autonomous vs HITL
         if (executionMode === 'autonomous') {
@@ -598,14 +606,14 @@ export class SchedulerService {
     return options[Math.floor(Math.random() * options.length)];
   }
   
-  private generateRecommendationDescription(type: string, cpuUtil: number, memUtil: number, baseSavings: number): string {
-    // baseSavings is the raw dollar amount before 10× multiplier, used for narrative text
+  private generateRecommendationDescription(type: string, cpuUtil: number, memUtil: number, monthlySavings: number): string {
+    const savingsFormatted = (monthlySavings / 1000).toFixed(0); // Convert to K notation
     if (type === 'rightsizing') {
-      return `Resource running at ${cpuUtil.toFixed(1)}% CPU and ${memUtil.toFixed(1)}% memory utilization. Recommend downsizing to reduce costs by approximately $${baseSavings}/month.`;
+      return `Resource running at ${cpuUtil.toFixed(1)}% CPU and ${memUtil.toFixed(1)}% memory utilization. Recommend downsizing to reduce costs by approximately $${savingsFormatted}K/month.`;
     } else if (type === 'scheduling') {
-      return `Resource usage patterns suggest potential for scheduled shutdown during off-peak hours. Estimated savings: $${baseSavings}/month.`;
+      return `Resource usage patterns suggest potential for scheduled shutdown during off-peak hours. Estimated savings: $${savingsFormatted}K/month.`;
     } else {
-      return `Storage analysis indicates underutilized capacity. Implement tiering to cold storage for $${baseSavings}/month savings.`;
+      return `Storage analysis indicates underutilized capacity. Implement tiering to cold storage for $${savingsFormatted}K/month savings.`;
     }
   }
   

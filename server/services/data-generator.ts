@@ -358,7 +358,6 @@ export class DataGenerator {
           storage: 'EBS-optimized'
         }),
         projectedMonthlySavings: 250560, // $250,560/month (enterprise scale)
-        projectedAnnualSavings: 250560 * 12, // $3M/year
         riskLevel: 16,
         status: 'pending'
       });
@@ -386,7 +385,6 @@ export class DataGenerator {
           versioning: true
         }),
         projectedMonthlySavings: 17210, // $17,210/month (enterprise scale)
-        projectedAnnualSavings: 17210 * 12, // $206k/year
         riskLevel: 5,
         status: 'pending'
       });
@@ -413,7 +411,6 @@ export class DataGenerator {
           paymentOption: 'partial-upfront'
         }),
         projectedMonthlySavings: 73680, // $73,680/month (enterprise scale)
-        projectedAnnualSavings: 73680 * 12, // $884k/year
         riskLevel: 3,
         status: 'pending'
       });
@@ -450,7 +447,6 @@ export class DataGenerator {
           resources: devResources.length
         }),
         projectedMonthlySavings: Math.round(potentialSavings), // Direct dollar amounts (enterprise scale)
-        projectedAnnualSavings: Math.round(potentialSavings * 12), // Annual savings
         riskLevel: 8,
         status: 'pending'
       });
@@ -478,7 +474,6 @@ export class DataGenerator {
           storageType: 'gp2'
         }),
         projectedMonthlySavings: 63180, // $63,180/month (enterprise scale)
-        projectedAnnualSavings: 63180 * 12, // $758k/year
         riskLevel: 12,
         status: 'pending'
       });

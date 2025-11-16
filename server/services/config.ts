@@ -274,7 +274,7 @@ export class ConfigService {
   async canExecuteAutonomously(recommendation: {
     type: string;
     riskLevel: number;
-    projectedAnnualSavings: number;
+    projectedMonthlySavings: number;
   }): Promise<boolean> {
     const config = await this.getAgentConfig();
     
@@ -288,8 +288,9 @@ export class ConfigService {
       return false;
     }
 
-    // Check savings threshold
-    if (recommendation.projectedAnnualSavings > config.approvalRequiredAboveSavings) {
+    // Check savings threshold (monthly savings * 12 for annual comparison)
+    const annualizedSavings = recommendation.projectedMonthlySavings * 12;
+    if (annualizedSavings > config.approvalRequiredAboveSavings) {
       return false;
     }
 

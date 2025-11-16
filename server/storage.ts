@@ -494,7 +494,7 @@ export class DatabaseStorage implements IStorage {
     // Get total identified savings from active recommendations
     const [savingsResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${recommendations.projectedAnnualSavings}), 0)::numeric`
+        total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
       })
       .from(recommendations)
       .where(
@@ -507,7 +507,7 @@ export class DatabaseStorage implements IStorage {
     // Get total realized savings from approved recommendations
     const [realizedSavingsResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${recommendations.projectedAnnualSavings}), 0)::numeric`
+        total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
       })
       .from(recommendations)
       .where(
@@ -529,7 +529,7 @@ export class DatabaseStorage implements IStorage {
     const monthlySpend = Number(monthlySpendResult.total);
     const identifiedSavings = Number(savingsResult.total);
     const realizedSavings = Number(realizedSavingsResult.total);
-    const wastePercentage = monthlySpend > 0 ? (identifiedSavings / 12 / monthlySpend) * 100 : 0;
+    const wastePercentage = monthlySpend > 0 ? (identifiedSavings / monthlySpend) * 100 : 0;
 
     return {
       monthlySpend,
@@ -670,17 +670,27 @@ export class DatabaseStorage implements IStorage {
       );
 
     // Get realized savings YTD (from successful optimizations this year)
+    // IMPORTANT: Only count LATEST optimization per resource to prevent accumulation
     const [realizedSavingsResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${optimizationHistory.actualSavings}), 0)::numeric`
+        total: sql<number>`
+          COALESCE(
+            SUM(latest_opt.actual_savings), 
+            0
+          )::numeric`
       })
-      .from(optimizationHistory)
-      .where(
-        and(
-          eq(optimizationHistory.tenantId, tenantId),
-          gte(optimizationHistory.executionDate, ytdStart),
-          eq(optimizationHistory.status, 'success')
-        )
+      .from(
+        sql`(
+          SELECT DISTINCT ON (r.resource_id) 
+            oh.actual_savings
+          FROM ${optimizationHistory} oh
+          INNER JOIN ${recommendations} r ON oh.recommendation_id = r.id
+          WHERE oh.tenant_id = ${tenantId}
+            AND oh.execution_date >= ${ytdStart}
+            AND oh.status = 'success'
+            AND r.tenant_id = ${tenantId}
+          ORDER BY r.resource_id, oh.execution_date DESC
+        ) AS latest_opt`
       );
 
     // Calculate values

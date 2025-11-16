@@ -244,7 +244,7 @@ export function ApprovalModal() {
               <div>
                 <span className="text-muted-foreground">Annual Savings:</span>
                 <span className="font-bold text-accent ml-2" data-testid="annual-savings">
-                  {formatCurrencyK(recommendation.projectedAnnualSavings)}
+                  {formatCurrencyK(recommendation.projectedMonthlySavings * 12)}
                 </span>
               </div>
               <div>

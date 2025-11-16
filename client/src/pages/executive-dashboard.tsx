@@ -168,45 +168,45 @@ export default function ExecutiveDashboard() {
         {/* OVERVIEW TAB */}
         <TabsContent value="overview" className="space-y-6">
           {/* Executive Summary - Financial Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-monthly-spend">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-gray-400">Monthly AWS Spend</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center min-h-[60px]">
-                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-[#0BCAD9] leading-tight" data-testid="monthly-spend-value">{formatCurrency(monthlySpend)}</div>
-                  <div className={`text-xs mt-1 flex items-center gap-1 flex-wrap ${monthlySpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                <div className="flex flex-col justify-center">
+                  <div className="text-2xl font-bold text-[#0BCAD9] mb-2" data-testid="monthly-spend-value">{formatCurrency(monthlySpend)}</div>
+                  <div className={`text-xs flex items-center gap-1 ${monthlySpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
                     {monthlySpendChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    <span className="whitespace-nowrap">{Math.abs(monthlySpendChange).toFixed(1)}% vs last month</span>
+                    <span>{Math.abs(monthlySpendChange).toFixed(1)}% vs last month</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-ytd-spend">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-gray-400">YTD AWS Spend</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center min-h-[60px]">
-                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-[#0BCAD9] leading-tight" data-testid="ytd-spend-value">{formatCurrency(ytdSpend)}</div>
-                  <div className={`text-xs mt-1 flex items-center gap-1 flex-wrap ${ytdSpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                <div className="flex flex-col justify-center">
+                  <div className="text-2xl font-bold text-[#0BCAD9] mb-2" data-testid="ytd-spend-value">{formatCurrency(ytdSpend)}</div>
+                  <div className={`text-xs flex items-center gap-1 ${ytdSpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
                     {ytdSpendChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    <span className="whitespace-nowrap">{Math.abs(ytdSpendChange).toFixed(1)}% vs prior-year YTD</span>
+                    <span>{Math.abs(ytdSpendChange).toFixed(1)}% vs prior-year YTD</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-identified-savings">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-gray-400">Identified Savings Awaiting Approval</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center min-h-[60px]">
-                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-green-500 leading-tight" data-testid="identified-savings-value">{formatCurrency(identifiedSavings)}</div>
-                  <div className="text-xs text-[#0BCAD9] mt-1">
+                <div className="flex flex-col justify-center">
+                  <div className="text-2xl font-bold text-green-500 mb-2" data-testid="identified-savings-value">{formatCurrency(identifiedSavings)}</div>
+                  <div className="text-xs text-[#0BCAD9]">
                     {recommendations.filter((r: any) => r.status === 'pending' || r.status === 'approved').length} recommendations
                   </div>
                 </div>
@@ -214,13 +214,13 @@ export default function ExecutiveDashboard() {
             </Card>
 
             <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-realized-savings">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-gray-400">Realized Savings YTD</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center min-h-[60px]">
-                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-[#0BCAD9] leading-tight" data-testid="realized-savings-value">{formatCurrency(realizedSavings)}</div>
-                  <div className="text-xs text-gray-400 mt-1">
+                <div className="flex flex-col justify-center">
+                  <div className="text-2xl font-bold text-[#0BCAD9] mb-2" data-testid="realized-savings-value">{formatCurrency(realizedSavings)}</div>
+                  <div className="text-xs text-gray-400">
                     {optimizationHistory.filter((h: any) => h.status === 'success').length} executed
                   </div>
                 </div>
@@ -228,13 +228,13 @@ export default function ExecutiveDashboard() {
             </Card>
 
             <Card className="bg-[#1B1E23] border-[#0BCAD9]/20" data-testid="card-waste-percentage">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-gray-400">Waste % Optimized YTD</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col justify-center min-h-[60px]">
-                  <div className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-orange-500 leading-tight" data-testid="waste-percentage-value">{(wastePercent || 0).toFixed(1)}%</div>
-                  <div className="text-xs text-gray-400 mt-1">
+                <div className="flex flex-col justify-center">
+                  <div className="text-2xl font-bold text-orange-500 mb-2" data-testid="waste-percentage-value">{(wastePercent || 0).toFixed(1)}%</div>
+                  <div className="text-xs text-gray-400">
                     YTD Performance
                   </div>
                 </div>

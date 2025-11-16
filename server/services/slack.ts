@@ -33,7 +33,6 @@ export async function sendOptimizationRecommendation(recommendation: {
   description: string;
   resourceId: string;
   projectedMonthlySavings: number;
-  projectedAnnualSavings: number;
   priority: string;
   recommendationId: string;
 }) {
@@ -70,10 +69,6 @@ export async function sendOptimizationRecommendation(recommendation: {
           {
             type: 'mrkdwn',
             text: `*Monthly Savings:* $${recommendation.projectedMonthlySavings.toLocaleString()}`
-          },
-          {
-            type: 'mrkdwn',
-            text: `*Annual Savings:* $${recommendation.projectedAnnualSavings.toLocaleString()}`
           }
         ]
       },

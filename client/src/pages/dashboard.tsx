@@ -26,7 +26,7 @@ export default function Dashboard() {
         case 'new_recommendation':
           toast({
             title: "New Optimization Opportunity",
-            description: `${lastMessage.data.title} - Potential savings: $${Number(lastMessage.data.projectedAnnualSavings).toLocaleString()}/year`,
+            description: `${lastMessage.data.title} - Potential savings: $${Number(lastMessage.data.projectedMonthlySavings * 12).toLocaleString()}/year`,
           });
           queryClient.invalidateQueries({ queryKey: ['/api/recommendations'] });
           break;

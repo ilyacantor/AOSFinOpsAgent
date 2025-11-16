@@ -177,7 +177,7 @@ export function RecommendationsPanel() {
                     )}
                   </div>
                   <Badge variant="outline" data-testid={`savings-badge-${index}`}>
-                    {formatCurrencyK(recommendation.projectedAnnualSavings)}/year
+                    {formatCurrencyK(recommendation.projectedMonthlySavings * 12)}/year
                   </Badge>
                 </div>
                 
