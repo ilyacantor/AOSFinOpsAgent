@@ -175,9 +175,9 @@ export default function ExecutiveDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col justify-center">
-                  <div className="text-3xl font-bold text-[#0BCAD9]">{formatCurrency(monthlySpend)}</div>
-                  <div className={`text-sm mt-1 flex items-center gap-1 ${monthlySpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                    {monthlySpendChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0BCAD9] break-words">{formatCurrency(monthlySpend)}</div>
+                  <div className={`text-xs sm:text-sm mt-1 flex items-center gap-1 ${monthlySpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    {monthlySpendChange > 0 ? <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
                     {Math.abs(monthlySpendChange).toFixed(1)}% vs last month
                   </div>
                 </div>
@@ -190,9 +190,9 @@ export default function ExecutiveDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col justify-center">
-                  <div className="text-3xl font-bold text-[#0BCAD9]">{formatCurrency(ytdSpend)}</div>
-                  <div className={`text-sm mt-1 flex items-center gap-1 ${ytdSpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                    {ytdSpendChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0BCAD9] break-words">{formatCurrency(ytdSpend)}</div>
+                  <div className={`text-xs sm:text-sm mt-1 flex items-center gap-1 ${ytdSpendChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    {ytdSpendChange > 0 ? <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
                     {Math.abs(ytdSpendChange).toFixed(1)}% vs prior-year YTD
                   </div>
                 </div>
@@ -205,8 +205,8 @@ export default function ExecutiveDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col justify-center">
-                  <div className="text-3xl font-bold text-green-500">{formatCurrency(identifiedSavings)}</div>
-                  <div className="text-sm text-[#0BCAD9] mt-1">
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-500 break-words">{formatCurrency(identifiedSavings)}</div>
+                  <div className="text-xs sm:text-sm text-[#0BCAD9] mt-1">
                     {recommendations.filter((r: any) => r.status === 'pending' || r.status === 'approved').length} recommendations
                   </div>
                 </div>
@@ -219,8 +219,8 @@ export default function ExecutiveDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col justify-center">
-                  <div className="text-3xl font-bold text-[#0BCAD9]">{formatCurrency(realizedSavings)}</div>
-                  <div className="text-sm text-gray-400 mt-1">
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0BCAD9] break-words">{formatCurrency(realizedSavings)}</div>
+                  <div className="text-xs sm:text-sm text-gray-400 mt-1">
                     {optimizationHistory.filter((h: any) => h.status === 'success').length} executed
                   </div>
                 </div>
@@ -233,8 +233,8 @@ export default function ExecutiveDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col justify-center">
-                  <div className="text-3xl font-bold text-orange-500">{(wastePercent || 0).toFixed(1)}%</div>
-                  <div className="text-sm text-gray-400 mt-1">
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-orange-500 break-words">{(wastePercent || 0).toFixed(1)}%</div>
+                  <div className="text-xs sm:text-sm text-gray-400 mt-1">
                     YTD Performance
                   </div>
                 </div>
