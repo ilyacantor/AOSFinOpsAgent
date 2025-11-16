@@ -127,6 +127,35 @@ Preferred communication style: Simple, everyday language.
 - **Executive Dashboard**: Comprehensive financial overview (Monthly/YTD Spend, Identified/Realized Savings, Waste Optimized %). Auto-refreshes every 10 seconds.
 - **Operations Dashboard**: Integrates metrics into a Data Flow Pipeline visualization, combining financial KPIs and operational telemetry. Auto-refreshes every 3 seconds.
 
+### AI History Drill-Down & Execution Mode Transparency (November 2025)
+- **Database Schema**:
+  - Added `aiModeHistoryId` field to recommendations table (nullable, links recommendations to AI analysis runs)
+  - Added `calculationMetadata` jsonb field for calculation transparency (resourceMonthlyCost, savingsPercentage, methodology)
+  - Composite index on tenantId + aiModeHistoryId for efficient drill-down queries
+- **Drill-Down Modal**:
+  - AI history cards on Executive Dashboard are now clickable
+  - Opens detailed modal with three tabs: Overview, Recommendations, Calculations
+  - Overview tab: Shows run status, timestamps, total savings, execution mode distribution (autonomous % vs HITL %)
+  - Recommendations tab: Lists all recommendations from that AI run with execution mode badges
+  - Calculations tab: Displays savings breakdown by type (rightsizing, scheduling, storage-tiering) and methodology transparency
+- **Execution Mode Filters**:
+  - Filter chips on Dashboard Recommendations Panel: All, Autonomous, HITL, Pending
+  - Active filter highlighted with accent color
+  - Filters top 6 priority recommendations by execution mode and status
+- **Enhanced Execution Mode Badges**:
+  - ✅ Auto-Executed (emerald) - autonomous recommendations that were executed
+  - ✅ Auto-Optimized (emerald) - autonomous recommendations pending execution
+  - 🕒 Needs Approval (amber) - HITL recommendations requiring approval
+  - ⏳ Awaiting Execution (indigo) - HITL recommendations approved and awaiting execution
+- **Config Status Banner**:
+  - Warning banner appears when autonomous mode is disabled
+  - Shows: "⚠️ Autonomous Mode Disabled - All recommendations require manual approval"
+  - Only displays when autonomousMode=false AND pending recommendations exist
+- **Backend API Enhancement**:
+  - GET /api/ai-mode-history/:id - Returns complete drill-down data (AI run, recommendations, savings breakdown, execution mode counts)
+  - Storage computes savings aggregations: totalSavings, averageSavings, savingsByType, executionModeCounts
+  - All AI-generated recommendations include calculation metadata for full transparency
+
 ### Performance Optimizations
 - **AI/RAG**: Gemini 2.0 Flash, Pinecone vector database for RAG, 5-minute TTL cache, Gemini text-embedding-004.
 - **Continuous Simulation**: High-velocity demo mode (3-second cycles), random resource utilization adjustments, 10x monetary multiplier for enterprise scale.
