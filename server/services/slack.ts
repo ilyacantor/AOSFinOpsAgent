@@ -4,11 +4,6 @@ import { WebClient, type ChatPostMessageArguments } from "@slack/web-api";
 const isSlackEnabled = Boolean(process.env.SLACK_BOT_TOKEN && process.env.SLACK_CHANNEL_ID);
 const SLACK_CHANNEL_ID = process.env.SLACK_CHANNEL_ID || "C1234567890";
 
-// Log warning in development mode
-if (!isSlackEnabled) {
-  console.warn("⚠️ Running in development mode. Slack notifications will be disabled.");
-}
-
 const slack = isSlackEnabled ? new WebClient(process.env.SLACK_BOT_TOKEN!) : null;
 
 export async function sendSlackMessage(

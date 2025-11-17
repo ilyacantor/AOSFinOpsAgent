@@ -1,3 +1,19 @@
+// Suppress AWS SDK v2 and other non-critical warnings (demo app uses synthetic data)
+process.removeAllListeners('warning');
+const originalEmitWarning = process.emitWarning;
+process.emitWarning = function(warning, ...args: any[]) {
+  const warningString = typeof warning === 'string' ? warning : (warning as any)?.message || '';
+  
+  // Suppress AWS SDK maintenance mode warnings
+  if (warningString.includes('AWS SDK') || 
+      warningString.includes('maintenance mode') ||
+      args[0] === 'DeprecationWarning' && warningString.includes('AWS')) {
+    return;
+  }
+  
+  return originalEmitWarning.apply(process, [warning, ...args] as any);
+};
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
