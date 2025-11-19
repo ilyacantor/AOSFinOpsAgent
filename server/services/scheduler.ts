@@ -112,6 +112,12 @@ export class SchedulerService {
   private async runResourceAnalysis() {
     const config = await configService.getAgentConfig();
     
+    // Skip AWS API calls if simulation mode is enabled
+    if (config.simulationMode) {
+      console.log('⚡ [SIMULATION MODE] Skipping AWS analysis - using continuous simulation loop');
+      return;
+    }
+    
     if (config.prodMode) {
       console.log('🚀 [PROD MODE ON] Running AI-powered analysis with Gemini 2.5 Flash + RAG...');
       await this.analyzeWithAI();
@@ -395,6 +401,13 @@ export class SchedulerService {
 
   private async syncCostData() {
     try {
+      // Skip AWS API calls if simulation mode is enabled
+      const config = await configService.getAgentConfig();
+      if (config.simulationMode) {
+        console.log('⚡ [SIMULATION MODE] Skipping AWS cost data sync - using synthetic data');
+        return;
+      }
+      
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 7); // Last 7 days
@@ -434,6 +447,13 @@ export class SchedulerService {
 
   private async checkTrustedAdvisor() {
     try {
+      // Skip AWS API calls if simulation mode is enabled
+      const config = await configService.getAgentConfig();
+      if (config.simulationMode) {
+        console.log('⚡ [SIMULATION MODE] Skipping AWS Trusted Advisor check - using synthetic data');
+        return;
+      }
+      
       const checks = await awsService.getTrustedAdvisorChecks();
       
       for (const check of checks) {

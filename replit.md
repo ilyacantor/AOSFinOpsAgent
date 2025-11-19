@@ -173,6 +173,11 @@ Preferred communication style: Simple, everyday language.
   - Only generates data when `cost_reports.length === 0` (prevents duplicate data)
   - Preserves existing data on restarts
   - Simulation mode can be toggled via database config UI (Settings page)
+  - **AWS API Protection**: All cron jobs check simulation mode before making AWS API calls:
+    - `runResourceAnalysis()` - Skips AWS resource analysis when simulation mode enabled
+    - `syncCostData()` - Skips AWS Cost Explorer calls when simulation mode enabled
+    - `checkTrustedAdvisor()` - Skips AWS Trusted Advisor checks when simulation mode enabled
+    - Prevents CredentialsError in production deployments without AWS credentials
 
 ### Performance Optimizations
 - **AI/RAG**: Gemini 2.0 Flash, Pinecone vector database for RAG, 5-minute TTL cache, Gemini text-embedding-004.
