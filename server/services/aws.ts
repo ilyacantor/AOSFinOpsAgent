@@ -155,6 +155,7 @@ export class AWSService {
   }
 
   async getRedshiftClusterUtilization(clusterIdentifier: string, startTime: Date, endTime: Date) {
+    this.initializeClients();
     try {
       const cpuParams = {
         MetricName: 'CPUUtilization',

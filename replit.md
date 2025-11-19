@@ -85,6 +85,12 @@ Preferred communication style: Simple, everyday language.
   - Password hashing with bcrypt (10 rounds)
   - Multi-tenant isolation via tenantId (COMPLETE)
   - Circuit breakers and health check endpoints
+- **AWS Credential Safety** (November 2025):
+  - Lazy initialization - AWS SDK clients only instantiated when credentials available
+  - Credential validation before SDK initialization (checks AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)
+  - All AWS methods guarded with initializeClients() including helper methods
+  - Preview/dev deployments without AWS credentials run error-free in simulation mode
+  - Clear error messages when AWS methods called without proper credentials
 
 ### Multi-Tenancy Architecture (Complete)
 - **Database Layer**:
