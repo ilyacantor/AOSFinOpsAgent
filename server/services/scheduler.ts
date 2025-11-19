@@ -36,6 +36,16 @@ export class SchedulerService {
       if (config.simulationMode) {
         console.log('📊 Simulation Mode is ON - initializing synthetic dataset...');
         await syntheticDataGenerator.generateInitialDataset();
+        
+        // Check if cost reports exist - if not, generate them
+        const existingReports = await storage.getCostReports(SYSTEM_TENANT_ID);
+        if (existingReports.length === 0) {
+          console.log('📈 No cost reports found - generating historical cost data...');
+          const { DataGenerator } = await import('./data-generator.js');
+          const generator = new DataGenerator(storage);
+          await generator.generateCostData();
+          console.log('✅ Historical cost data generated (6 months)');
+        }
       }
     } catch (error) {
       console.error('❌ Failed to initialize synthetic data:', error);

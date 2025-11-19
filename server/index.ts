@@ -15,6 +15,10 @@ process.emitWarning = function(warning, ...args: any[]) {
 };
 
 import express, { type Request, Response, NextFunction } from "express";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execPromise = promisify(exec);
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { loggingMiddleware } from "./middleware/logging";
@@ -47,6 +51,21 @@ app.use('/api/*', writeLimiter);
 app.use('/api/*', readLimiter);
 
 (async () => {
+  // Run database migrations in production before starting the app
+  const isProductionEnv = process.env.NODE_ENV === 'production';
+  if (isProductionEnv) {
+    try {
+      console.log('🗄️  Running database migrations in production...');
+      const { stdout, stderr } = await execPromise('npm run db:push --  --force');
+      if (stdout) console.log(stdout);
+      if (stderr && !stderr.includes('Warning')) console.error(stderr);
+      console.log('✅ Database migrations complete');
+    } catch (error) {
+      console.error('❌ Database migration failed:', error);
+      console.error('Attempting to continue anyway - tables may already exist');
+    }
+  }
+
   // Validate JWT_SECRET at startup - fail fast if missing or insecure
   const JWT_SECRET = process.env.JWT_SECRET;
   

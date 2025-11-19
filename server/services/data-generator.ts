@@ -252,7 +252,7 @@ export class DataGenerator {
     return resources;
   }
 
-  private async generateCostData() {
+  public async generateCostData() {
     const services = [
       'EC2-Instance', 'RDS', 'S3', 'ELB', 'CloudWatch', 'Route53', 
       'CloudFront', 'Lambda', 'EBS', 'Data Transfer'
@@ -359,7 +359,8 @@ export class DataGenerator {
         }),
         projectedMonthlySavings: 250560, // $250,560/month (enterprise scale)
         riskLevel: 16,
-        status: 'pending'
+        status: 'pending',
+        executionMode: 'hitl' // High impact requires approval
       });
     }
 
@@ -386,7 +387,8 @@ export class DataGenerator {
         }),
         projectedMonthlySavings: 17210, // $17,210/month (enterprise scale)
         riskLevel: 5,
-        status: 'pending'
+        status: 'pending',
+        executionMode: 'autonomous' // Low risk autonomous execution
       });
     }
 
@@ -412,7 +414,8 @@ export class DataGenerator {
         }),
         projectedMonthlySavings: 73680, // $73,680/month (enterprise scale)
         riskLevel: 3,
-        status: 'pending'
+        status: 'pending',
+        executionMode: 'autonomous' // Low risk reservation
       });
     }
 
@@ -448,7 +451,8 @@ export class DataGenerator {
         }),
         projectedMonthlySavings: Math.round(potentialSavings), // Direct dollar amounts (enterprise scale)
         riskLevel: 8,
-        status: 'pending'
+        status: 'pending',
+        executionMode: 'autonomous' // Automated scheduling
       });
     }
 
@@ -475,7 +479,8 @@ export class DataGenerator {
         }),
         projectedMonthlySavings: 63180, // $63,180/month (enterprise scale)
         riskLevel: 12,
-        status: 'pending'
+        status: 'pending',
+        executionMode: 'hitl' // Database changes require approval
       });
     }
 
