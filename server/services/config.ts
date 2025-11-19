@@ -119,7 +119,7 @@ export class ConfigService {
         },
         features: {
           usePlatform: this.getEnvBoolean('USE_PLATFORM', false),
-          simulationMode: this.getEnvBoolean('SIMULATION_MODE', false),
+          simulationMode: this.getEnvBoolean('SIMULATION_MODE', true),
           autoApproveLowRisk: this.getEnvBoolean('AUTO_APPROVE_LOW_RISK', false)
         },
         rateLimit: {
