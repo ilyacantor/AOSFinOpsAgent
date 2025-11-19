@@ -1,28 +1,45 @@
 import AWS from 'aws-sdk';
 
-// Configure AWS SDK
-AWS.config.update({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION || 'us-east-1'
-});
-
 export class AWSService {
-  private costExplorer: AWS.CostExplorer;
-  private cloudWatch: AWS.CloudWatch;
-  private redshift: AWS.Redshift;
-  private support: AWS.Support;
-  private s3: AWS.S3;
+  private costExplorer?: AWS.CostExplorer;
+  private cloudWatch?: AWS.CloudWatch;
+  private redshift?: AWS.Redshift;
+  private support?: AWS.Support;
+  private s3?: AWS.S3;
+  private initialized = false;
 
   constructor() {
+    // Don't instantiate AWS clients in constructor - use lazy initialization
+  }
+
+  private hasAWSCredentials(): boolean {
+    return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+  }
+
+  private initializeClients() {
+    if (this.initialized) return;
+
+    if (!this.hasAWSCredentials()) {
+      throw new Error('AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables or enable simulation mode.');
+    }
+
+    // Configure AWS SDK only when we have credentials
+    AWS.config.update({
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      region: process.env.AWS_REGION || 'us-east-1'
+    });
+
     this.costExplorer = new AWS.CostExplorer({ region: 'us-east-1' });
     this.cloudWatch = new AWS.CloudWatch();
     this.redshift = new AWS.Redshift();
     this.support = new AWS.Support({ region: 'us-east-1' });
     this.s3 = new AWS.S3();
+    this.initialized = true;
   }
 
   async getCostAndUsageReports(startDate: string, endDate: string) {
+    this.initializeClients();
     try {
       const params = {
         TimePeriod: {
@@ -48,6 +65,7 @@ export class AWSService {
   }
 
   async getCloudWatchMetrics(resourceId: string, metricName: string, namespace: string, startTime: Date, endTime: Date) {
+    this.initializeClients();
     try {
       const params = {
         MetricName: metricName,
@@ -73,6 +91,7 @@ export class AWSService {
   }
 
   async getTrustedAdvisorChecks() {
+    this.initializeClients();
     try {
       const checks = await this.support.describeTrustedAdvisorChecks({ language: 'en' }).promise();
       
@@ -108,6 +127,7 @@ export class AWSService {
   }
 
   async getRedshiftClusters() {
+    this.initializeClients();
     try {
       const result = await this.redshift.describeClusters().promise();
       return result.Clusters || [];
@@ -118,6 +138,7 @@ export class AWSService {
   }
 
   async resizeRedshiftCluster(clusterIdentifier: string, nodeType: string, numberOfNodes: number) {
+    this.initializeClients();
     try {
       const params = {
         ClusterIdentifier: clusterIdentifier,
@@ -162,6 +183,7 @@ export class AWSService {
   }
 
   async analyzeRedshiftClusterOptimization(clusterIdentifier: string) {
+    this.initializeClients();
     try {
       // Get cluster details
       const clusters = await this.getRedshiftClusters();
