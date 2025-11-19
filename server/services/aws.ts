@@ -7,6 +7,8 @@ export class AWSService {
   private support?: AWS.Support;
   private s3?: AWS.S3;
   private initialized = false;
+  private initializationFailed = false;
+  private lastInitAttempt = 0;
 
   constructor() {
     // Don't instantiate AWS clients in constructor - use lazy initialization
@@ -16,37 +18,79 @@ export class AWSService {
     return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
   }
 
+  /**
+   * Layer 3 Defense: Centralized guard for AWS client availability
+   * Returns true if clients are ready, false otherwise
+   * NEVER throws - safe to call from any context
+   */
+  private isReady(): boolean {
+    // First check: already initialized and all clients exist
+    if (this.initialized && this.costExplorer && this.cloudWatch && this.redshift && this.support && this.s3) {
+      return true;
+    }
+    
+    // Second check: if initialization previously failed, don't retry immediately (cooldown: 30 seconds)
+    const now = Date.now();
+    if (this.initializationFailed && (now - this.lastInitAttempt) < 30000) {
+      return false;
+    }
+    
+    // Third check: try to initialize if credentials available
+    if (!this.initialized && this.hasAWSCredentials()) {
+      this.lastInitAttempt = now;
+      this.initializeClients(); // Never throws
+      return this.initialized;
+    }
+    
+    // Final fallback: not ready (no credentials or initialization failed)
+    return false;
+  }
+
+  /**
+   * Layer 3 Defense: Initialize AWS clients - NEVER throws
+   * Sets initialized=true on success, initializationFailed=true on failure
+   */
   private initializeClients() {
     if (this.initialized) return;
 
-    if (!this.hasAWSCredentials()) {
-      // Layer 3 Defense: Gracefully handle missing credentials in simulation mode
-      const simulationMode = process.env.SIMULATION_MODE?.toLowerCase() === 'true';
-      if (simulationMode) {
-        console.warn('⚠️  [AWS Service] No credentials available but simulation mode is enabled - AWS methods will not be called');
-        return; // Graceful exit in simulation mode
+    try {
+      if (!this.hasAWSCredentials()) {
+        // Layer 3 Defense: Gracefully handle missing credentials
+        const simulationMode = process.env.SIMULATION_MODE?.toLowerCase() === 'true';
+        console.warn(`⚠️  [AWS Service] No credentials available${simulationMode ? ' (simulation mode enabled)' : ''} - AWS clients not initialized`);
+        this.initializationFailed = true;
+        return; // Graceful exit - DO NOT THROW
       }
-      
-      throw new Error('AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables or enable SIMULATION_MODE=true.');
+
+      // Configure AWS SDK only when we have credentials
+      AWS.config.update({
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        region: process.env.AWS_REGION || 'us-east-1'
+      });
+
+      this.costExplorer = new AWS.CostExplorer({ region: 'us-east-1' });
+      this.cloudWatch = new AWS.CloudWatch();
+      this.redshift = new AWS.Redshift();
+      this.support = new AWS.Support({ region: 'us-east-1' });
+      this.s3 = new AWS.S3();
+      this.initialized = true;
+      this.initializationFailed = false;
+      console.log('✅ [AWS Service] AWS clients initialized successfully');
+    } catch (error) {
+      console.error('⚠️  [AWS Service] Failed to initialize AWS clients:', error);
+      this.initializationFailed = true;
+      // DO NOT THROW - graceful failure
     }
-
-    // Configure AWS SDK only when we have credentials
-    AWS.config.update({
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      region: process.env.AWS_REGION || 'us-east-1'
-    });
-
-    this.costExplorer = new AWS.CostExplorer({ region: 'us-east-1' });
-    this.cloudWatch = new AWS.CloudWatch();
-    this.redshift = new AWS.Redshift();
-    this.support = new AWS.Support({ region: 'us-east-1' });
-    this.s3 = new AWS.S3();
-    this.initialized = true;
   }
 
   async getCostAndUsageReports(startDate: string, endDate: string) {
-    this.initializeClients();
+    // Layer 3 Defense: Centralized guard - never throws
+    if (!this.isReady()) {
+      console.warn('⚠️  [AWS Service] getCostAndUsageReports - clients not available, returning empty array');
+      return [];
+    }
+    
     try {
       const params = {
         TimePeriod: {
@@ -72,7 +116,12 @@ export class AWSService {
   }
 
   async getCloudWatchMetrics(resourceId: string, metricName: string, namespace: string, startTime: Date, endTime: Date) {
-    this.initializeClients();
+    // Layer 3 Defense: Centralized guard - never throws
+    if (!this.isReady()) {
+      console.warn('⚠️  [AWS Service] getCloudWatchMetrics - clients not available, returning empty array');
+      return [];
+    }
+    
     try {
       const params = {
         MetricName: metricName,
@@ -98,7 +147,12 @@ export class AWSService {
   }
 
   async getTrustedAdvisorChecks() {
-    this.initializeClients();
+    // Layer 3 Defense: Centralized guard - never throws
+    if (!this.isReady()) {
+      console.warn('⚠️  [AWS Service] getTrustedAdvisorChecks - clients not available, returning empty array');
+      return [];
+    }
+    
     try {
       const checks = await this.support.describeTrustedAdvisorChecks({ language: 'en' }).promise();
       
@@ -134,7 +188,12 @@ export class AWSService {
   }
 
   async getRedshiftClusters() {
-    this.initializeClients();
+    // Layer 3 Defense: Centralized guard - never throws
+    if (!this.isReady()) {
+      console.warn('⚠️  [AWS Service] getRedshiftClusters - clients not available, returning empty array');
+      return [];
+    }
+    
     try {
       const result = await this.redshift.describeClusters().promise();
       return result.Clusters || [];
@@ -145,7 +204,11 @@ export class AWSService {
   }
 
   async resizeRedshiftCluster(clusterIdentifier: string, nodeType: string, numberOfNodes: number) {
-    this.initializeClients();
+    // Layer 3 Defense: Centralized guard - throw for mutating operations
+    if (!this.isReady()) {
+      throw new Error('Cannot resize Redshift cluster - AWS credentials not available');
+    }
+    
     try {
       const params = {
         ClusterIdentifier: clusterIdentifier,
@@ -162,7 +225,12 @@ export class AWSService {
   }
 
   async getRedshiftClusterUtilization(clusterIdentifier: string, startTime: Date, endTime: Date) {
-    this.initializeClients();
+    // Layer 3 Defense: Centralized guard - never throws
+    if (!this.isReady()) {
+      console.warn('⚠️  [AWS Service] getRedshiftClusterUtilization - clients not available, returning empty utilization');
+      return { cpuUtilization: [] };
+    }
+    
     try {
       const cpuParams = {
         MetricName: 'CPUUtilization',
@@ -191,9 +259,14 @@ export class AWSService {
   }
 
   async analyzeRedshiftClusterOptimization(clusterIdentifier: string) {
-    this.initializeClients();
+    // Layer 3 Defense: Centralized guard - never throws
+    if (!this.isReady()) {
+      console.warn('⚠️  [AWS Service] analyzeRedshiftClusterOptimization - clients not available, returning no recommendation');
+      return { cluster: null, utilization: 0, recommendation: null };
+    }
+    
     try {
-      // Get cluster details
+      // Get cluster details (safe to call - isReady() already passed)
       const clusters = await this.getRedshiftClusters();
       const cluster = clusters.find(c => c.ClusterIdentifier === clusterIdentifier);
       

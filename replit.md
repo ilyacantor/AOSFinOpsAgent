@@ -179,11 +179,14 @@ Preferred communication style: Simple, everyday language.
   - Only generates data when `cost_reports.length === 0` (prevents duplicate data)
   - Preserves existing data on restarts
   - Simulation mode can be toggled via database config UI (Settings page)
-  - **AWS API Protection**: All cron jobs check simulation mode before making AWS API calls:
-    - `runResourceAnalysis()` - Skips AWS resource analysis when simulation mode enabled
-    - `syncCostData()` - Skips AWS Cost Explorer calls when simulation mode enabled
-    - `checkTrustedAdvisor()` - Skips AWS Trusted Advisor checks when simulation mode enabled
-    - Prevents CredentialsError in production deployments without AWS credentials
+  - **Three-Layer Defense Against CredentialsError** (November 2025):
+    - **Layer 1 - Initialization Order**: Scheduler cron jobs deferred until after config initialization completes (prevents race condition during bootstrap)
+    - **Layer 2 - Environment Variable Failsafe**: All cron callbacks check `SIMULATION_MODE` env var synchronously before calling AWS APIs (bootstrap protection)
+    - **Layer 3 - AWS Service Centralized Guard**: `isReady()` method validates client availability across ALL AWS methods (never throws on read operations)
+    - All AWS service methods use centralized `isReady()` guard - returns safe fallbacks when clients unavailable
+    - Helper methods can safely call other helpers without re-throwing initialization errors
+    - Mutating operations (resize, delete) throw descriptive errors when clients unavailable
+    - Preview deployments work reliably without AWS credentials when `SIMULATION_MODE=true`
 
 ### Performance Optimizations
 - **AI/RAG**: Gemini 2.0 Flash, Pinecone vector database for RAG, 5-minute TTL cache, Gemini text-embedding-004.
