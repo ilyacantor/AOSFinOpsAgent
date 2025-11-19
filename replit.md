@@ -156,6 +156,24 @@ Preferred communication style: Simple, everyday language.
   - Storage computes savings aggregations: totalSavings, averageSavings, savingsByType, executionModeCounts
   - All AI-generated recommendations include calculation metadata for full transparency
 
+### Automatic Initialization & Production Deployment (November 2025)
+- **Environment Configuration**:
+  - `SIMULATION_MODE` environment variable set to `true` for automatic demo data generation
+  - Database default: `agent.simulation_mode='true'` in system_config table
+  - Code default: `simulationMode: true` in ConfigService initialization
+- **Fresh Deployment Behavior**:
+  - On startup with empty database, automatically generates:
+    - 6 synthetic AWS resources (EC2, RDS, Redshift clusters)
+    - 6 months of historical cost data (cost_reports table)
+    - Initial recommendation dataset with 80/20 autonomous/HITL distribution
+  - Starts continuous 3-second simulation loop
+  - Generates 2-5 new recommendations per cycle
+  - Auto-executes autonomous recommendations in background
+- **Production Safety**:
+  - Only generates data when `cost_reports.length === 0` (prevents duplicate data)
+  - Preserves existing data on restarts
+  - Simulation mode can be disabled via database config UI
+
 ### Performance Optimizations
 - **AI/RAG**: Gemini 2.0 Flash, Pinecone vector database for RAG, 5-minute TTL cache, Gemini text-embedding-004.
 - **Continuous Simulation**: High-velocity demo mode (3-second cycles), random resource utilization adjustments, 10x monetary multiplier for enterprise scale.
