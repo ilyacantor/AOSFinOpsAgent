@@ -157,10 +157,10 @@ Preferred communication style: Simple, everyday language.
   - All AI-generated recommendations include calculation metadata for full transparency
 
 ### Automatic Initialization & Production Deployment (November 2025)
-- **Environment Configuration**:
-  - `SIMULATION_MODE` environment variable set to `true` for automatic demo data generation
+- **Configuration**:
   - Database default: `agent.simulation_mode='true'` in system_config table
-  - Code default: `simulationMode: true` in ConfigService initialization
+  - Code default: `simulationMode: true` in ConfigService initialization (server/services/config.ts line 125)
+  - No environment variable required - uses database configuration as single source of truth
 - **Fresh Deployment Behavior**:
   - On startup with empty database, automatically generates:
     - 6 synthetic AWS resources (EC2, RDS, Redshift clusters)
@@ -172,7 +172,7 @@ Preferred communication style: Simple, everyday language.
 - **Production Safety**:
   - Only generates data when `cost_reports.length === 0` (prevents duplicate data)
   - Preserves existing data on restarts
-  - Simulation mode can be disabled via database config UI
+  - Simulation mode can be toggled via database config UI (Settings page)
 
 ### Performance Optimizations
 - **AI/RAG**: Gemini 2.0 Flash, Pinecone vector database for RAG, 5-minute TTL cache, Gemini text-embedding-004.
