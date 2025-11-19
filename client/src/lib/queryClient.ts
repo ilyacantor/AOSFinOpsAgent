@@ -6,6 +6,11 @@ function handleUnauthorized() {
 }
 
 async function throwIfResNotOk(res: Response) {
+  // Treat 304 Not Modified as success (browser cache hit)
+  if (res.status === 304) {
+    return;
+  }
+  
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
     
