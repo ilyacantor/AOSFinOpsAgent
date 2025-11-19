@@ -20,7 +20,14 @@ export class AWSService {
     if (this.initialized) return;
 
     if (!this.hasAWSCredentials()) {
-      throw new Error('AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables or enable simulation mode.');
+      // Layer 3 Defense: Gracefully handle missing credentials in simulation mode
+      const simulationMode = process.env.SIMULATION_MODE?.toLowerCase() === 'true';
+      if (simulationMode) {
+        console.warn('⚠️  [AWS Service] No credentials available but simulation mode is enabled - AWS methods will not be called');
+        return; // Graceful exit in simulation mode
+      }
+      
+      throw new Error('AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables or enable SIMULATION_MODE=true.');
     }
 
     // Configure AWS SDK only when we have credentials

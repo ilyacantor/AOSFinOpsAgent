@@ -15,12 +15,14 @@ export class SchedulerService {
   private simulationCycleCount: number = 0;
 
   constructor() {
-    this.initializeScheduledTasks();
+    // NOTE: Cron job registration moved to initialize() to prevent race condition
+    // where jobs fire before config is loaded
   }
 
   async initialize() {
     await this.initializeConfiguration();
     await this.initializeSyntheticData();
+    this.initializeScheduledTasks(); // Now safe - config is loaded
     this.startContinuousSimulation();
   }
 
@@ -110,6 +112,13 @@ export class SchedulerService {
 
   // Determines which analysis method to use based on Prod Mode configuration
   private async runResourceAnalysis() {
+    // Layer 2 Defense: Check environment variable first (bootstrap failsafe)
+    const envSimulationMode = process.env.SIMULATION_MODE?.toLowerCase() === 'true';
+    if (envSimulationMode) {
+      console.log('⚡ [ENV:SIMULATION_MODE] Skipping AWS analysis - using continuous simulation loop');
+      return;
+    }
+    
     const config = await configService.getAgentConfig();
     
     // Skip AWS API calls if simulation mode is enabled
@@ -401,6 +410,13 @@ export class SchedulerService {
 
   private async syncCostData() {
     try {
+      // Layer 2 Defense: Check environment variable first (bootstrap failsafe)
+      const envSimulationMode = process.env.SIMULATION_MODE?.toLowerCase() === 'true';
+      if (envSimulationMode) {
+        console.log('⚡ [ENV:SIMULATION_MODE] Skipping AWS cost data sync - using synthetic data');
+        return;
+      }
+      
       // Skip AWS API calls if simulation mode is enabled
       const config = await configService.getAgentConfig();
       if (config.simulationMode) {
@@ -447,6 +463,13 @@ export class SchedulerService {
 
   private async checkTrustedAdvisor() {
     try {
+      // Layer 2 Defense: Check environment variable first (bootstrap failsafe)
+      const envSimulationMode = process.env.SIMULATION_MODE?.toLowerCase() === 'true';
+      if (envSimulationMode) {
+        console.log('⚡ [ENV:SIMULATION_MODE] Skipping AWS Trusted Advisor check - using synthetic data');
+        return;
+      }
+      
       // Skip AWS API calls if simulation mode is enabled
       const config = await configService.getAgentConfig();
       if (config.simulationMode) {
