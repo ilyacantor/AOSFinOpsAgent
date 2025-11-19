@@ -149,7 +149,8 @@ app.use('/api/*', readLimiter);
     logger.info('Application configuration initialized successfully');
     
     // Initialize scheduler service for demo mode simulation and background jobs
-    new SchedulerService();
+    const scheduler = new SchedulerService();
+    await scheduler.initialize();
     logger.info('Scheduler service initialized successfully');
   } catch (error) {
     logger.error('Failed to initialize configuration', {}, error as Error);

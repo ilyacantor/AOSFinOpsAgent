@@ -182,7 +182,7 @@ export class ConfigService {
       },
       {
         key: 'agent.simulation_mode',
-        value: 'false',
+        value: 'true',
         description: 'Simulation Mode: When ON, generate synthetic dynamic data. When OFF, use static data',
         updatedBy: 'system'
       },

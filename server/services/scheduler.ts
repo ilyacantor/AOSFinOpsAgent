@@ -16,8 +16,11 @@ export class SchedulerService {
 
   constructor() {
     this.initializeScheduledTasks();
-    this.initializeConfiguration();
-    this.initializeSyntheticData();
+  }
+
+  async initialize() {
+    await this.initializeConfiguration();
+    await this.initializeSyntheticData();
     this.startContinuousSimulation();
   }
 
@@ -555,7 +558,7 @@ export class SchedulerService {
           currentConfig: resource.currentConfig as any,
           recommendedConfig: this.generateRecommendedConfig(recType, resource),
           projectedMonthlySavings: monthlySavings,
-          riskLevel: numericRiskLevel.toString(), // Store as string to match AI flow
+          riskLevel: numericRiskLevel,
           executionMode: executionModeResult.executionMode,
           calculationMetadata: {
             resourceMonthlyCost: resourceMonthlyCost,
