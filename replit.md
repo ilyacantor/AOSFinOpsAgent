@@ -14,6 +14,9 @@ Preferred communication style: Simple, everyday language.
 - **State Management**: TanStack Query
 - **Routing**: Wouter
 - **Real-time**: WebSocket connection
+- **HTTP Caching**: Properly handles HTTP 304 (Not Modified) responses as success (November 2025 fix)
+  - Frontend error handler treats 304 status codes as valid cache hits
+  - Prevents false "Server error" messages on cached API responses
 
 ### Backend
 - **Runtime**: Node.js with Express.js
@@ -24,9 +27,14 @@ Preferred communication style: Simple, everyday language.
 - **Background Processing**: Node-cron for scheduled tasks
 
 ### Data Storage
-- **Primary Database**: PostgreSQL (Neon serverless)
+- **Primary Database**: PostgreSQL (Supabase - migrated November 2025)
+- **Connection**: Uses SUPABASE_DATABASE_URL environment variable (pooled connection on port 5432)
 - **Schema Management**: Drizzle migrations
 - **Models**: Users, AWS resources, cost reports, recommendations, approval workflows
+- **Migration Notes**:
+  - Migrated from Replit's Neon database to Supabase (November 2025)
+  - All environments (development, preview, production) use single Supabase database
+  - Schema fixes applied: optimization_history table columns (execution_date, before_config, after_config, slack_message_id)
 
 ### Authentication & Authorization
 - **Authentication**: JWT-based with localStorage persistence
@@ -200,7 +208,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Cloud Services
 - **AWS SDK v2**: AWS service integration
-- **Neon Database**: Serverless PostgreSQL hosting
+- **Supabase**: PostgreSQL database hosting (migrated from Neon November 2025)
 - **AWS Cost Explorer**: Cost analysis
 - **AWS CloudWatch**: Utilization metrics
 - **AWS Trusted Advisor**: Optimization recommendations
