@@ -1,222 +1,352 @@
-# FinOps Autopilot - Enterprise Cloud Cost Optimization Platform
+# FinOps Autopilot
 
-## Overview
-FinOps Autopilot is a comprehensive cloud cost optimization platform for enterprises. It automates AWS resource analysis, identifies cost-saving opportunities, and provides actionable recommendations. The platform features real-time monitoring, automated analysis, executive dashboards with approval workflows, and integrates FinOps best practices to reduce cloud spending through automated insights and human oversight.
+**Enterprise Cloud Cost Optimization Platform**
+
+Last Updated: November 2025
+
+---
+
+## What is FinOps Autopilot?
+
+FinOps Autopilot is an intelligent platform that automatically finds ways to reduce your AWS cloud spending. It monitors your cloud resources 24/7, identifies waste, and either fixes problems automatically or asks for your approval before making changes.
+
+**The core value proposition**: Reduce cloud costs by 20-40% through automated analysis and intelligent recommendations, while maintaining full control over high-risk changes.
+
+---
+
+## Key Capabilities
+
+### 1. Automated Cost Analysis
+
+**What it does**: Continuously scans your AWS environment to find cost-saving opportunities.
+
+- **Resource Monitoring**: Tracks EC2 instances, RDS databases, and Redshift clusters
+- **Utilization Analysis**: Identifies underutilized resources (CPU, memory, storage)
+- **Cost Tracking**: Monitors monthly and year-to-date spending trends
+- **Waste Detection**: Calculates percentage of spend that could be optimized
+
+**How it works**: Every 3 seconds (in simulation mode) or on configurable schedules (in production), the system analyzes resource utilization and generates optimization recommendations.
+
+---
+
+### 2. Intelligent Recommendations
+
+**What it does**: Generates actionable recommendations to reduce costs.
+
+**Three types of recommendations**:
+
+| Type | What it does | Example |
+|------|--------------|---------|
+| **Rightsizing** | Suggests smaller instance types for underutilized resources | "Downsize i-abc123 from m5.xlarge to m5.large - saves $150/month" |
+| **Scheduling** | Recommends stopping resources during off-hours | "Stop dev database outside business hours - saves $200/month" |
+| **Storage Tiering** | Suggests moving data to cheaper storage classes | "Convert gp2 volume to gp3 - saves $50/month" |
+
+**Smart prioritization**: Recommendations are ranked by estimated savings, making it easy to focus on high-impact changes first.
+
+---
+
+### 3. Dual Execution Mode (Autonomous vs Human-in-the-Loop)
+
+**What it does**: Balances automation speed with human oversight for risky changes.
+
+**Two execution modes**:
+
+| Mode | Risk Level | Behavior | Example |
+|------|------------|----------|---------|
+| **Autonomous** | Low | Executes automatically without approval | Rightsizing a dev instance |
+| **HITL (Human-in-the-Loop)** | High | Requires manual approval before execution | Modifying production database |
+
+**Default distribution**: 80% autonomous / 20% HITL
+
+**Why it matters**: Low-risk savings happen immediately, while high-risk changes get human review. You get the benefits of automation without sacrificing control.
+
+---
+
+### 4. Executive Dashboard
+
+**What it does**: Provides real-time visibility into cloud spending and optimization progress.
+
+**Key metrics displayed**:
+- **Monthly Spend**: Current month's cloud costs
+- **YTD Spend**: Year-to-date total spending
+- **Identified Savings**: Total potential savings found
+- **Realized Savings**: Actual savings from executed optimizations
+- **Waste Optimized %**: Percentage of waste eliminated
+
+**Dashboard features**:
+- Auto-refreshes every 10 seconds
+- Top 6 priority recommendations panel
+- Execution mode filters (All, Autonomous, HITL, Pending)
+- AI analysis history with drill-down details
+- Status banner when autonomous mode is disabled
+
+---
+
+### 5. Approval Workflows
+
+**What it does**: Manages the review and approval process for HITL recommendations.
+
+**Workflow stages**:
+1. **Pending**: Recommendation awaiting review
+2. **Approved**: Human approved, ready for execution
+3. **Executed**: Change successfully applied
+4. **Rejected**: Human declined the recommendation
+
+**Features**:
+- Multi-stage approval for high-impact changes
+- Approval history tracking
+- Execution status monitoring
+- Slack notifications for new recommendations and completions
+
+---
+
+### 6. AI-Powered Analysis (Optional)
+
+**What it does**: Uses advanced AI to find optimization opportunities that rule-based systems miss.
+
+**Capabilities**:
+- **Gemini 2.0 Flash**: Google's AI model for intelligent analysis
+- **RAG (Retrieval-Augmented Generation)**: Combines AI with your historical data
+- **Pattern Recognition**: Identifies usage patterns and trends
+- **Calculation Transparency**: Shows exactly how savings were calculated
+
+**When to use**: Enable "Production Mode" in settings for AI-powered recommendations instead of heuristic rules.
+
+---
+
+### 7. Simulation Mode (Demo/Development)
+
+**What it does**: Runs the full platform with synthetic data - no AWS credentials required.
+
+**Perfect for**:
+- Demos and presentations
+- Development and testing
+- Training new users
+- Evaluating the platform before production deployment
+
+**How it works**:
+- Generates 6 synthetic AWS resources
+- Creates 6 months of historical cost data
+- Produces 2-5 new recommendations every 3 seconds
+- Auto-executes autonomous recommendations
+- All features work identically to production mode
+
+---
+
+### 8. Real-Time Updates
+
+**What it does**: Keeps all users in sync with live data updates.
+
+- **WebSocket Connection**: Instant updates without page refresh
+- **Dashboard Sync**: Metrics update automatically
+- **Notification Broadcasting**: All users see new recommendations immediately
+- **Query Invalidation**: Frontend data stays fresh
+
+---
+
+### 9. Slack Integration
+
+**What it does**: Sends notifications to your Slack workspace for key events.
+
+**Notification types**:
+- New high-priority recommendations
+- Optimization completions
+- Approval requests
+- Status updates
+
+---
+
+### 10. Multi-Tenant Support
+
+**What it does**: Securely isolates data between different organizations/teams.
+
+- Each tenant sees only their own resources and recommendations
+- Complete data isolation at database level
+- JWT-based tenant identification
+- No cross-tenant data leakage possible
+
+---
+
+## Operating Modes
+
+### Simulation Mode (Default)
+- Uses synthetic data
+- No AWS credentials required
+- 3-second recommendation cycles
+- Perfect for demos and development
+
+### Production Mode
+- Connects to real AWS account
+- Requires AWS credentials
+- Uses AI-powered analysis (Gemini + RAG)
+- Configurable analysis schedules
+
+**Toggle between modes** via the Settings page in the UI.
+
+---
+
+## User Roles
+
+| Role | Permissions |
+|------|-------------|
+| **Admin** | Full access: view, approve, execute, configure |
+| **User** | View recommendations, limited approvals |
+
+---
+
+## Security Features
+
+### Authentication
+- JWT-based authentication with 2-hour sessions
+- Secure password hashing (bcrypt)
+- Automatic session expiration
+- Role-based access control
+
+### Enterprise Security
+- Security headers (HSTS, CSP, X-Frame-Options)
+- CORS protection (fail-closed in production)
+- API rate limiting (prevents abuse)
+- Audit logging (tracks all critical actions)
+- Database transactions with rollback
+
+### Data Protection
+- Multi-tenant isolation
+- Encrypted connections (TLS)
+- No credential storage in code
+- Environment variable secrets management
+
+---
+
+## Getting Started
+
+### For Demo/Evaluation
+1. Open the application
+2. Register an account (admin role recommended)
+3. Login to see the Executive Dashboard
+4. Watch recommendations generate automatically
+5. Try approving/rejecting HITL recommendations
+
+### For Production Use
+1. Set `SIMULATION_MODE=false` in environment
+2. Configure AWS credentials:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - `AWS_REGION` (optional, defaults to us-east-1)
+3. Configure Slack integration (optional)
+4. Set up AI integration for advanced analysis (optional)
+
+---
 
 ## User Preferences
-Preferred communication style: Simple, everyday language.
 
-## System Architecture
+- **Communication Style**: Simple, everyday language
+- **Documentation**: Focus on functional capabilities over technical details
+- **Error Messages**: Clear, actionable guidance
 
-### Frontend
-- **Framework**: React 18 with TypeScript (Vite)
-- **UI**: Shadcn/ui (Radix UI), Tailwind CSS
-- **State Management**: TanStack Query
-- **Routing**: Wouter
-- **Real-time**: WebSocket connection
-- **HTTP Caching**: Properly handles HTTP 304 (Not Modified) responses as success (November 2025 fix)
-  - Frontend error handler treats 304 status codes as valid cache hits
-  - Prevents false "Server error" messages on cached API responses
+---
 
-### Backend
-- **Runtime**: Node.js with Express.js
-- **Language**: TypeScript (ESM)
-- **ORM**: Drizzle ORM
-- **API**: RESTful with WebSocket support
-- **Session Management**: Express sessions (PostgreSQL store)
-- **Background Processing**: Node-cron for scheduled tasks
+## Technical Architecture
 
-### Data Storage
-- **Primary Database**: PostgreSQL (Supabase - migrated November 2025)
-- **Connection**: Uses SUPABASE_DATABASE_URL environment variable (pooled connection on port 5432)
-- **Schema Management**: Drizzle migrations
-- **Models**: Users, AWS resources, cost reports, recommendations, approval workflows
-- **Migration Notes**:
-  - Migrated from Replit's Neon database to Supabase (November 2025)
-  - All environments (development, preview, production) use single Supabase database
-  - Schema fixes applied: optimization_history table columns (execution_date, before_config, after_config, slack_message_id)
+### Frontend Stack
+- React 18 with TypeScript (Vite bundler)
+- Shadcn/ui component library (Radix UI + Tailwind CSS)
+- TanStack Query for data fetching
+- Wouter for routing
+- WebSocket for real-time updates
 
-### Authentication & Authorization
-- **Authentication**: JWT-based with localStorage persistence
-- **JWT TTL**: 2 hours with automatic expiration
-- **Authorization**: Role-based access control (admin, user)
-- **Registration**: Secure registration with role selection (admin/user)
-- **Login UI**: Dedicated authentication page with tabbed login/register interface
-- **Auth Guard**: Frontend route protection with automatic redirect to login
-- **Workflows**: Multi-stage approval for high-impact optimizations
+### Backend Stack
+- Node.js with Express.js
+- TypeScript (ESM modules)
+- Drizzle ORM for database operations
+- Node-cron for scheduled tasks
 
-### Enterprise Security (Phase 2 Complete)
-- **Security Headers**: 
-  - Strict-Transport-Security (HSTS) with max-age 1 year, includeSubDomains
-  - X-Frame-Options: DENY (clickjacking protection)
-  - X-Content-Type-Options: nosniff (MIME sniffing protection)
-  - Content-Security-Policy (CSP) with strict directives
-  - X-XSS-Protection: 1; mode=block
-  - Referrer-Policy, Permissions-Policy, X-DNS-Prefetch-Control
-- **CORS Hardening**: 
-  - Production fail-closed (requires ALLOWED_ORIGINS env var)
-  - Rejects wildcard origins (*) in production
-  - Startup validation fails-fast if misconfigured
-  - Development mode allows localhost origins only
-- **Session Timeout Enforcement**:
-  - 2-hour maximum session age (iat-based)
-  - Hard JWT expiration validation (exp check)
-  - Applied to both REST API and WebSocket connections
-  - Warning headers when token expiring <15 min (X-Token-Expiring-Soon, X-Token-Expires-In)
-  - Middleware ordering: authenticateToken → enforceSessionTimeout → audit → handler
-- **Audit Logging**:
-  - 13+ critical endpoints logged (auth, recommendations, approvals, system config)
-  - Imperative logging in 4 complex workflows (approval, optimization, batch operations)
-  - Captures: userId, action, resourceType, resourceId, metadata, IP, user agent
-  - Asynchronous non-blocking writes (does not impact request latency)
-  - Only logs successful operations (2xx responses)
-- **Database Transactions**:
-  - Atomic operations for recommendation approval and optimization execution
-  - Retry logic with exponential backoff (3 retries)
-  - Automatic rollback on failure
-  - Transaction helpers: handleApprovalTransaction, handleOptimizationExecutionTransaction
-- **API Rate Limiting**:
-  - Auth endpoints: 5 requests/min (login, register)
-  - General API: 100 requests/min
-  - Write operations: 30 requests/min
-  - Read operations: 60 requests/min
-  - Per-IP enforcement with memory store
-- **WebSocket Security**:
-  - JWT authentication via query parameter
-  - Session age validation (2-hour limit)
-  - Token expiration check during connection
-  - Rejects stale sessions with code 1008 (Policy Violation)
-  - Connection refused for expired/invalid tokens
-- **Production Safety**:
-  - JWT_SECRET required at startup (32+ chars minimum)
-  - Fail-fast validation for missing/weak secrets
-  - Password hashing with bcrypt (10 rounds)
-  - Multi-tenant isolation via tenantId (COMPLETE)
-  - Circuit breakers and health check endpoints
-- **AWS Credential Safety** (November 2025):
-  - Lazy initialization - AWS SDK clients only instantiated when credentials available
-  - Credential validation before SDK initialization (checks AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)
-  - All AWS methods guarded with initializeClients() including helper methods
-  - Preview/dev deployments without AWS credentials run error-free in simulation mode
-  - Clear error messages when AWS methods called without proper credentials
+### Database
+- PostgreSQL (Replit's built-in database or Supabase)
+- Connection priority: `DATABASE_URL` (Replit) > `SUPABASE_DATABASE_URL` (external)
+- Automatic driver selection: Standard pg for Replit/Supabase, Neon serverless for neon.tech
+- All environments share single database instance
 
-### Multi-Tenancy Architecture (Complete)
-- **Database Layer**:
-  - tenantId column on all 9 user-scoped tables (NOT NULL, no defaults)
-  - Composite indexes for tenant-scoped queries (tenantId + createdAt/status/reportDate)
-  - Default tenant: 'default-tenant' for system operations
-- **Storage Layer**:
-  - All create/read/update/delete methods require tenantId parameter
-  - All queries filter by tenantId using WHERE clauses
-  - Pattern: `where(and(eq(table.id, id), eq(table.tenantId, tenantId)))`
-- **API Layer**:
-  - All authenticated endpoints extract tenantId from JWT (req.user?.tenantId)
-  - Fail with 401 if tenantId missing (except login/register)
-  - No 'default-tenant' fallbacks in authenticated routes
-- **Background Services**:
-  - SYSTEM_TENANT_ID = 'default-tenant' constant
-  - All storage calls explicitly pass SYSTEM_TENANT_ID
-  - scheduler.ts and data-generator.ts properly scoped
-- **Security Impact**:
-  - Complete tenant data isolation enforced
-  - No cross-tenant data leakage possible
-  - Both READ and WRITE paths secured
-  - JWT payload includes tenantId for all requests
+### AWS Integration
+- AWS SDK v2 (real integration available)
+- Cost Explorer for cost data
+- CloudWatch for utilization metrics
+- Trusted Advisor for optimization checks
+- Graceful fallback when credentials unavailable
 
-### Real-time Communication
-- **WebSocket Server**: Integrated for dashboard updates
-- **Event Broadcasting**: Notifications for recommendations and optimization completions
-- **Client Synchronization**: Automatic UI updates via query invalidation
+### AI/ML Stack (Production Mode)
+- Gemini 2.0 Flash for analysis
+- Pinecone for vector database (RAG)
+- text-embedding-004 for embeddings
+- 5-minute TTL cache for performance
 
-### autonomOS Platform Integration
-- **Client**: `aosClient.ts` for platform interactions
-- **APIs**: `getView()` for data, `postIntent()` for actions
-- **Task Polling**: Automatic status polling
-- **Feature Flag**: `VITE_USE_PLATFORM` for enabling/disabling
-- **HITL Safety**: Recommendations map to `explain_only: true, dry_run: true`
-- **Idempotency**: Unique keys for intent executions
-- **Approval Integration**: Platform intents sent on recommendation approval
+---
 
-### Dashboard Structure
-- **Executive Dashboard**: Comprehensive financial overview (Monthly/YTD Spend, Identified/Realized Savings, Waste Optimized %). Auto-refreshes every 10 seconds.
-- **Operations Dashboard**: Integrates metrics into a Data Flow Pipeline visualization, combining financial KPIs and operational telemetry. Auto-refreshes every 3 seconds.
+## Key Files Reference
 
-### AI History Drill-Down & Execution Mode Transparency (November 2025)
-- **Database Schema**:
-  - Added `aiModeHistoryId` field to recommendations table (nullable, links recommendations to AI analysis runs)
-  - Added `calculationMetadata` jsonb field for calculation transparency (resourceMonthlyCost, savingsPercentage, methodology)
-  - Composite index on tenantId + aiModeHistoryId for efficient drill-down queries
-- **Drill-Down Modal**:
-  - AI history cards on Executive Dashboard are now clickable
-  - Opens detailed modal with three tabs: Overview, Recommendations, Calculations
-  - Overview tab: Shows run status, timestamps, total savings, execution mode distribution (autonomous % vs HITL %)
-  - Recommendations tab: Lists all recommendations from that AI run with execution mode badges
-  - Calculations tab: Displays savings breakdown by type (rightsizing, scheduling, storage-tiering) and methodology transparency
-- **Execution Mode Filters**:
-  - Filter chips on Dashboard Recommendations Panel: All, Autonomous, HITL, Pending
-  - Active filter highlighted with accent color
-  - Filters top 6 priority recommendations by execution mode and status
-- **Enhanced Execution Mode Badges**:
-  - ✅ Auto-Executed (emerald) - autonomous recommendations that were executed
-  - ✅ Auto-Optimized (emerald) - autonomous recommendations pending execution
-  - 🕒 Needs Approval (amber) - HITL recommendations requiring approval
-  - ⏳ Awaiting Execution (indigo) - HITL recommendations approved and awaiting execution
-- **Config Status Banner**:
-  - Warning banner appears when autonomous mode is disabled
-  - Shows: "⚠️ Autonomous Mode Disabled - All recommendations require manual approval"
-  - Only displays when autonomousMode=false AND pending recommendations exist
-- **Backend API Enhancement**:
-  - GET /api/ai-mode-history/:id - Returns complete drill-down data (AI run, recommendations, savings breakdown, execution mode counts)
-  - Storage computes savings aggregations: totalSavings, averageSavings, savingsByType, executionModeCounts
-  - All AI-generated recommendations include calculation metadata for full transparency
+| File | Purpose |
+|------|---------|
+| `server/services/scheduler.ts` | Background job scheduling |
+| `server/services/aws.ts` | AWS SDK integration |
+| `server/services/config.ts` | Configuration management |
+| `server/services/heuristic-engine.ts` | Rule-based recommendations |
+| `server/storage.ts` | Database operations |
+| `shared/schema.ts` | Data models and types |
+| `client/src/pages/Dashboard.tsx` | Executive dashboard UI |
+| `client/src/lib/queryClient.ts` | API client and caching |
 
-### Automatic Initialization & Production Deployment (November 2025)
-- **Configuration**:
-  - Database default: `agent.simulation_mode='true'` in system_config table
-  - Code default: `simulationMode: true` in ConfigService initialization (server/services/config.ts line 125)
-  - No environment variable required - uses database configuration as single source of truth
-- **Fresh Deployment Behavior**:
-  - On startup with empty database, automatically generates:
-    - 6 synthetic AWS resources (EC2, RDS, Redshift clusters)
-    - 6 months of historical cost data (cost_reports table)
-    - Initial recommendation dataset with 80/20 autonomous/HITL distribution
-  - Starts continuous 3-second simulation loop
-  - Generates 2-5 new recommendations per cycle
-  - Auto-executes autonomous recommendations in background
-- **Production Safety**:
-  - Only generates data when `cost_reports.length === 0` (prevents duplicate data)
-  - Preserves existing data on restarts
-  - Simulation mode can be toggled via database config UI (Settings page)
-  - **Three-Layer Defense Against CredentialsError** (November 2025):
-    - **Layer 1 - Initialization Order**: Scheduler cron jobs deferred until after config initialization completes (prevents race condition during bootstrap)
-    - **Layer 2 - Environment Variable Failsafe**: All cron callbacks check `SIMULATION_MODE` env var synchronously before calling AWS APIs (bootstrap protection)
-    - **Layer 3 - AWS Service Centralized Guard**: `isReady()` method validates client availability across ALL AWS methods (never throws on read operations)
-    - All AWS service methods use centralized `isReady()` guard - returns safe fallbacks when clients unavailable
-    - Helper methods can safely call other helpers without re-throwing initialization errors
-    - Mutating operations (resize, delete) throw descriptive errors when clients unavailable
-    - Preview deployments work reliably without AWS credentials when `SIMULATION_MODE=true`
+---
 
-### Performance Optimizations
-- **AI/RAG**: Gemini 2.0 Flash, Pinecone vector database for RAG, 5-minute TTL cache, Gemini text-embedding-004.
-- **Continuous Simulation**: High-velocity demo mode (3-second cycles), random resource utilization adjustments, 10x monetary multiplier for enterprise scale.
-- **Heuristic Recommendation Engine**: Runs every 3 seconds, generates 2-5 recommendations (Rightsizing, scheduling, storage-tiering), 80% autonomous / 20% HITL risk distribution.
-- **HITL vs Autonomous Labeling**: Recommendations tagged with `executionMode` ("autonomous" or "hitl"), visual badges, and dashboard widget showing 80/20 execution split.
-- **Currency Formatting**: Hybrid `formatCurrencyK` utility for smart, whole-number display (e.g., "$71", "$260 K").
-- **Database**: BIGINT for monetary fields, vector-based RAG, PostgreSQL for core data, optimized queries with indexing and minimal data transfer.
+## Environment Variables
 
-## External Dependencies
+### Required
+| Variable | Purpose |
+|----------|---------|
+| `SUPABASE_DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Authentication token signing (32+ chars) |
 
-### Cloud Services
-- **AWS SDK v2**: AWS service integration
-- **Supabase**: PostgreSQL database hosting (migrated from Neon November 2025)
-- **AWS Cost Explorer**: Cost analysis
-- **AWS CloudWatch**: Utilization metrics
-- **AWS Trusted Advisor**: Optimization recommendations
+### Optional - AWS Integration
+| Variable | Purpose |
+|----------|---------|
+| `AWS_ACCESS_KEY_ID` | AWS credentials |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials |
+| `AWS_REGION` | AWS region (default: us-east-1) |
 
-### Third-party Integrations
-- **Pinecone**: Vector database for RAG
-- **Slack Web API**: Notifications
-- **AWS Support API**: Enhanced recommendation data
+### Optional - Features
+| Variable | Purpose |
+|----------|---------|
+| `SIMULATION_MODE` | Enable synthetic data mode |
+| `PINECONE_API_KEY` | Vector database for AI/RAG |
+| `ALLOWED_ORIGINS` | CORS origins (production) |
 
-### Development
-- **Replit Platform**: Development environment
+---
+
+## Recent Updates (November 2025)
+
+1. **Supabase Migration**: Moved from Neon to Supabase PostgreSQL
+2. **HTTP 304 Fix**: Resolved caching issue causing false error messages
+3. **Three-Layer AWS Defense**: Reliable operation without AWS credentials
+4. **AI Drill-Down**: Click AI history cards for detailed breakdowns
+5. **Execution Mode Badges**: Visual indicators for autonomous vs HITL
+6. **Config Status Banner**: Warning when autonomous mode disabled
+
+---
+
+## Known Limitations
+
+- AWS only (no Azure/GCP support yet)
+- Limited to EC2, RDS, Redshift resources
+- No reserved instance analysis
+- No custom report exports
+- Slack is only notification channel
+
+See `roadmap_finops.md` for planned improvements.
+
+---
+
+## Support
+
+For issues or questions:
+- Check workflow logs for errors
+- Review browser console for frontend issues
+- Verify environment variables are set correctly
+- Ensure database connection is active
