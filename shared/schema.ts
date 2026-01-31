@@ -328,7 +328,9 @@ export const insertAwsResourceSchema = createInsertSchema(awsResources).omit({ i
 export const insertCostReportSchema = createInsertSchema(costReports).omit({ id: true, createdAt: true });
 export const insertRecommendationSchema = createInsertSchema(recommendations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOptimizationHistorySchema = createInsertSchema(optimizationHistory).omit({ id: true, createdAt: true });
-export const insertApprovalRequestSchema = createInsertSchema(approvalRequests).omit({ id: true, createdAt: true, approvalDate: true });
+export const insertApprovalRequestSchema = createInsertSchema(approvalRequests).omit({ id: true, createdAt: true, approvalDate: true }).extend({
+  tenantId: z.string().optional()
+});
 export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHistoricalCostSnapshotSchema = createInsertSchema(historicalCostSnapshots).omit({ id: true, createdAt: true });
 export const insertAiModeHistorySchema = createInsertSchema(aiModeHistory).omit({ id: true, createdAt: true });
