@@ -719,7 +719,10 @@ export class DatabaseStorage implements IStorage {
       lastMonthSpend = Number(lastMonthResult.total);
       ytdSpend = Number(ytdResult.total);
       priorYtdSpend = Number(priorYtdResult.total);
-    } else {
+    }
+    
+    // If cost_reports returned zero for current period, fall back to aws_resources
+    if (monthlySpend === 0) {
       // Fallback: Use aws_resources current monthly costs
       const [resourceCostResult] = await db
         .select({
