@@ -43,7 +43,7 @@ export function RecommendationsPanel() {
         comments: 'Bulk approval of all pending recommendations'
       });
     },
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
       const totalSavings = data.totalAnnualSavings || 0;
       const formattedSavings = formatCurrencyK(totalSavings);
       
@@ -52,8 +52,8 @@ export function RecommendationsPanel() {
         description: `Successfully approved ${data.approvedCount} recommendations with total annual savings of ${formattedSavings}`,
       });
       
-      // Force refresh all related data
-      queryClient.invalidateQueries({ queryKey: ['/api/recommendations'] });
+      // Force IMMEDIATE refresh of all related data - use refetchQueries for synchronous update
+      await queryClient.refetchQueries({ queryKey: ['/api/recommendations'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/metrics'] });
       queryClient.invalidateQueries({ queryKey: ['/api/optimization-history'] });
     },
@@ -106,8 +106,10 @@ export function RecommendationsPanel() {
   }
 
   // Filter recommendations based on active filter
+  // ALWAYS exclude 'executed' recommendations - they belong in history, not the active queue
   const getFilteredRecommendations = () => {
-    let filtered = recommendations || [];
+    // First filter out executed items - they should never appear in the recommendations panel
+    let filtered = (recommendations || []).filter(r => r.status !== 'executed');
     
     switch (activeFilter) {
       case 'autonomous':
@@ -121,7 +123,7 @@ export function RecommendationsPanel() {
         break;
       case 'all':
       default:
-        // Show all
+        // Show all non-executed
         break;
     }
     
