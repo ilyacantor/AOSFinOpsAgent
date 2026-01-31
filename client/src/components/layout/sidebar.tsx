@@ -1,4 +1,4 @@
-import { Activity, Bot, ChartLine, Cog, Shield, Lightbulb, BarChart3, HelpCircle, X } from "lucide-react";
+import { Activity, Bot, ChartLine, Cog, Shield, Lightbulb, BarChart3, HelpCircle, BookOpen, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -213,18 +213,33 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
           </h3>
           <ul className="space-y-2">
             <li>
-              <Link 
+              <Link
                 href="/faq"
                 onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive('/faq') 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
+                  isActive('/faq')
+                    ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
                 data-testid="nav-faq"
               >
                 <HelpCircle className="w-5 h-5 mr-3" />
                 FAQ
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/user-guide"
+                onClick={handleLinkClick}
+                className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/user-guide')
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+                data-testid="nav-user-guide"
+              >
+                <BookOpen className="w-5 h-5 mr-3" />
+                User Guide
               </Link>
             </li>
           </ul>

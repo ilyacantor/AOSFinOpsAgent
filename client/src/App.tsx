@@ -12,6 +12,7 @@ import Automation from "@/pages/automation";
 import Governance from "@/pages/governance";
 import AgentConfig from "@/pages/agent-config";
 import FAQ from "@/pages/faq";
+import UserGuide from "@/pages/user-guide";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -68,6 +69,13 @@ function Router() {
         {() => (
           <AuthGuard>
             <FAQ />
+          </AuthGuard>
+        )}
+      </Route>
+      <Route path="/user-guide">
+        {() => (
+          <AuthGuard>
+            <UserGuide />
           </AuthGuard>
         )}
       </Route>

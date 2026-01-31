@@ -1,1136 +1,415 @@
-# FinOps Autopilot - User Guide & Technical Documentation
+# FinOps Autopilot - Complete Guide
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [AI Analysis Modes](#ai-analysis-modes)
-3. [Data Sources](#data-sources)
-4. [Getting Started](#getting-started)
-5. [Dashboard Features](#dashboard-features)
+2. [Getting Started](#getting-started)
+3. [Dashboard Overview](#dashboard-overview)
+4. [Managing Recommendations](#managing-recommendations)
+5. [Approval Workflows](#approval-workflows)
 6. [Cost Analysis](#cost-analysis)
-7. [Managing Recommendations](#managing-recommendations)
-8. [Approval Workflows](#approval-workflows)
-9. [Automation & Governance](#automation--governance)
-10. [Real-Time Monitoring](#real-time-monitoring)
-11. [API Reference](#api-reference)
-12. [Troubleshooting](#troubleshooting)
-
-## Overview
-
-FinOps Autopilot is an enterprise cloud cost optimization platform that automatically analyzes your AWS infrastructure, identifies cost-saving opportunities, and provides actionable recommendations to reduce cloud spending. The platform combines intelligent resource analysis with financial operations (FinOps) best practices, offering both automated insights and human oversight for cost optimization decisions.
-
-### Key Benefits
-- **Automated Cost Analysis**: Continuous monitoring of AWS resources and spending patterns
-- **AI-Powered Recommendations**: Advanced AI analysis using Google Gemini 2.0 Flash with RAG for intelligent cost optimization
-- **Dual-Mode Operation**: Switch between AI-powered analysis (Production Mode) and heuristic-based recommendations (Demo Mode)
-- **Enterprise Workflows**: Multi-stage approval processes for governance and compliance
-- **Real-Time Insights**: Live dashboards showing cost trends, savings opportunities, and optimization progress
-- **Slack Integration**: Automated notifications for team collaboration
-
-## AI Analysis Modes
-
-FinOps Autopilot supports two operational modes for generating cost optimization recommendations:
-
-### Production Mode (AI + RAG)
-
-**Technology**: Google Gemini 2.0 Flash with Pinecone vector database for Retrieval-Augmented Generation (RAG)
-
-**When to Use**:
-- Production environments requiring high-accuracy recommendations
-- Complex infrastructure with diverse workload patterns
-- Environments where AWS credentials are available
-
-**Features**:
-- **Advanced AI Analysis**: Uses Google's Gemini 2.0 Flash model for intelligent resource analysis
-- **Context-Aware**: RAG integration provides recommendations based on historical patterns and best practices
-- **Scheduled Analysis**: Runs automatically every 6 hours
-- **Manual Trigger**: On-demand analysis via Agent Configuration page
-- **Higher Accuracy**: More sophisticated analysis compared to rule-based systems
-
-**How to Enable**:
-1. Navigate to **Agent Configuration** page
-2. Toggle **Production Mode** switch to ON
-3. Ensure AWS credentials are configured (if using real AWS data)
-4. System will automatically run AI analysis every 6 hours
-
-**Manual AI Analysis**:
-- When Production Mode is active, a "Run AI Analysis Now" button appears
-- Click to trigger immediate AI-powered resource analysis
-- Analysis typically completes within 30-60 seconds
-- New recommendations appear automatically on the dashboard
-
-**Configuration**:
-```javascript
-// Production Mode settings
-{
-  "prodMode": true,           // Enable AI + RAG analysis
-  "aiAnalysisInterval": "0 */6 * * *",  // Every 6 hours
-  "aiModel": "gemini-2.0-flash",
-  "ragEnabled": true,
-  "ragDatabase": "pinecone"
-}
-```
-
-### Demo/Simulation Mode (Heuristics)
-
-**Technology**: Rule-based heuristic engine
-
-**When to Use**:
-- Development and testing environments
-- Demos and proof-of-concept scenarios
-- When AWS credentials are not available
-- Rapid synthetic data generation for testing
-
-**Features**:
-- **Fast Recommendations**: Generates 2-5 recommendations every 3 seconds
-- **Synthetic Data**: Creates realistic AWS resource data for testing
-- **No AWS Credentials Required**: Works with simulated data
-- **High-Velocity Updates**: Continuous 3-second data refresh cycles
-- **Predictable Patterns**: Rule-based recommendations for common scenarios
-
-**Common Recommendation Types**:
-- **EC2 Rightsizing**: Based on CPU utilization thresholds (<30% = downsize)
-- **Resource Scheduling**: Stop non-production instances during off-hours
-- **Storage Tiering**: Move infrequently accessed S3 data to cheaper tiers
-- **Idle Resource Termination**: Remove unused resources
-
-**How to Enable**:
-1. Navigate to **Agent Configuration** page
-2. Toggle **Simulation Mode** switch to ON
-3. System immediately begins generating synthetic data
-4. Recommendations appear within seconds
-
-### Agent Configuration
-
-Access the **Agent Configuration** page to control operational modes and system behavior:
-
-**Available Controls**:
-- **Production Mode**: Enable/disable AI-powered analysis with Gemini 2.0 Flash
-- **Simulation Mode**: Enable/disable synthetic data generation
-- **Autonomous Mode**: Toggle automatic optimization execution
-- **Approval Threshold**: Set minimum savings requiring manual approval
-- **Risk Level**: Configure maximum acceptable risk for autonomous execution
-- **Auto-Execute Types**: Select which recommendation types can run automatically
-
-**System Status Display**:
-- **Analysis Mode**: Shows current mode (AI + RAG or Heuristics)
-- **Data Mode**: Indicates if using simulation or real AWS data
-- **Operation Mode**: Autonomous or manual approval required
-- **Max Risk Level**: Current risk tolerance percentage
-
-### AI Analysis History
-
-Track AI analysis executions and results:
-
-**Available Metrics**:
-- Analysis timestamp and duration
-- Model used (Gemini 2.0 Flash)
-- Number of recommendations generated
-- Total identified savings
-- Success/failure status
-
-**Access History**:
-- Navigate to **Agent Configuration** page
-- View "AI Mode History" section
-- Each entry shows complete analysis details
-
-## Data Sources
-
-### Primary AWS Data Sources
-
-#### 1. AWS Cost Explorer API
-**Purpose**: Provides detailed cost and usage data for comprehensive spend analysis.
-
-**Data Collected**:
-- Daily cost breakdowns by service (EC2, RDS, S3, etc.)
-- Usage quantities and pricing metrics
-- Cost trends and projections
-- Service-level spending patterns
-
-**How It Works**:
-```javascript
-// Example API call structure
-const costData = await costExplorer.getCostAndUsage({
-  TimePeriod: { Start: '2025-01-01', End: '2025-01-31' },
-  Granularity: 'DAILY',
-  Metrics: ['BlendedCost', 'UsageQuantity'],
-  GroupBy: [{ Type: 'DIMENSION', Key: 'SERVICE' }]
-});
-```
-
-**Update Frequency**: Daily (automated via scheduler)
-
-#### 2. AWS CloudWatch Metrics
-**Purpose**: Resource utilization monitoring for optimization recommendations.
-
-**Data Collected**:
-- CPU utilization percentages
-- Memory usage statistics
-- Network I/O metrics
-- Storage performance data
-- Custom application metrics
-
-**Key Metrics Monitored**:
-- EC2: CPU, Memory, Network, Disk I/O
-- RDS: CPU, Connections, Read/Write IOPS
-- Redshift: CPU, Connection count, Query performance
-- S3: Request metrics, Transfer rates
-
-**Update Frequency**: Hourly collection, analyzed daily
-
-#### 3. AWS Trusted Advisor
-**Purpose**: AWS-native cost optimization recommendations and security insights.
-
-**Data Collected**:
-- Low utilization EC2 instances
-- Unattached EBS volumes
-- Idle load balancers
-- Reserved Instance optimization opportunities
-- Security group violations
-
-**Integration Method**: 
-- Requires AWS Business or Enterprise Support plan
-- Automated checks run weekly
-- Results integrated with platform recommendations
-
-#### 4. AWS Resource APIs
-**Purpose**: Current configuration and state information for all monitored resources.
-
-**Resources Monitored**:
-
-| Resource Type | API Source | Configuration Data |
-|---------------|------------|-------------------|
-| EC2 Instances | EC2 API | Instance type, region, tags, security groups |
-| RDS Databases | RDS API | Engine, instance class, storage, backup settings |
-| Redshift Clusters | Redshift API | Node type, cluster size, encryption |
-| S3 Buckets | S3 API | Storage class, lifecycle policies, versioning |
-| Load Balancers | ELB API | Type, targets, health checks |
-
-### Data Storage Schema
-
-#### AWS Resources Table
-```sql
-CREATE TABLE aws_resources (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-  resource_id TEXT NOT NULL UNIQUE,        -- AWS resource identifier
-  resource_type TEXT NOT NULL,             -- EC2, RDS, S3, etc.
-  region TEXT NOT NULL,                    -- AWS region
-  current_config JSONB NOT NULL,          -- Current resource configuration
-  utilization_metrics JSONB,              -- Performance metrics
-  monthly_cost DECIMAL(10,2),             -- Current monthly cost
-  last_analyzed TIMESTAMP DEFAULT NOW(),   -- Last analysis timestamp
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-#### Cost Reports Table
-```sql
-CREATE TABLE cost_reports (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-  report_date TIMESTAMP NOT NULL,         -- Cost report date
-  service_category TEXT NOT NULL,         -- AWS service (EC2, RDS, etc.)
-  resource_id TEXT,                       -- Specific resource (optional)
-  cost DECIMAL(12,2) NOT NULL,           -- Daily cost amount
-  usage DECIMAL(12,6),                   -- Usage quantity
-  usage_type TEXT,                       -- Usage type (hours, GB, etc.)
-  region TEXT,                           -- AWS region
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-#### Recommendations Table
-```sql
-CREATE TABLE recommendations (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-  resource_id TEXT NOT NULL,             -- Target AWS resource
-  type TEXT NOT NULL,                    -- resize, terminate, storage-class, etc.
-  priority TEXT NOT NULL,               -- critical, high, medium, low
-  title TEXT NOT NULL,                  -- Recommendation title
-  description TEXT NOT NULL,            -- Detailed description
-  current_config JSONB NOT NULL,       -- Current resource state
-  recommended_config JSONB NOT NULL,   -- Proposed new configuration
-  projected_monthly_savings DECIMAL(10,2), -- Expected monthly savings
-  projected_annual_savings DECIMAL(10,2),  -- Expected annual savings
-  risk_level DECIMAL(5,2),             -- Risk percentage (0-100)
-  status TEXT DEFAULT 'pending',       -- pending, approved, rejected, executed
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-### Data Update Schedule
-
-| Data Source | Frequency | Method | Purpose |
-|-------------|-----------|---------|----------|
-| Cost Explorer | Daily at 6 AM UTC | Automated | Cost trend analysis |
-| CloudWatch Metrics | Every hour | Automated | Utilization monitoring |
-| Trusted Advisor | Weekly | Automated | AWS-native recommendations |
-| Resource Configuration | Daily at 8 AM UTC | API polling | Configuration drift detection |
-| Recommendations Generation | Daily at 10 AM UTC | Analysis engine | New optimization opportunities |
-
-## Getting Started
-
-### Initial Setup
-
-1. **Access the Platform**
-   - Navigate to your FinOps Autopilot dashboard
-   - Log in with your enterprise credentials
-   - Verify your user role (User, Admin, or CFO)
-
-2. **Generate Sample Data** (Development/Testing)
-   ```bash
-   # Navigate to dashboard and use the data generation endpoint
-   curl -X POST /api/generate-aws-data
-   ```
-
-3. **Verify Data Integration**
-   - Check the "Resources Analyzed" metric on the dashboard
-   - Ensure cost data is populated for the current month
-   - Verify recommendations are being generated
-
-### Dashboard Overview
-
-Your dashboard provides a real-time view of your cloud cost optimization status:
-
-**Key Metrics Displayed**:
-- **Monthly Spend**: Current month's AWS costs
-- **Identified Savings**: Total potential monthly savings from pending recommendations
-- **Realized Savings**: Actual savings from approved optimizations
-- **Resources Analyzed**: Number of AWS resources under management
-- **Waste Percentage**: Percentage of spend that could be optimized
-
-## Dashboard Features
-
-### Real-Time Metrics Cards
-
-#### Monthly Spend Tracking
-**Purpose**: Monitor current month's AWS expenditure against projections.
-
-**How to Use**:
-1. View the large dollar amount for current month spend
-2. Compare against last month's total (shown as trend)
-3. Check the percentage change indicator (green = decrease, red = increase)
-
-**What to Watch For**:
-- Sudden spikes in daily spending
-- Consistent month-over-month increases
-- Spending approaching budget thresholds
-
-#### Cost Optimization Opportunities
-**Purpose**: Track potential and realized savings from recommendations.
-
-**Metrics Explained**:
-- **Identified Savings**: Total monthly savings available from pending recommendations
-- **Realized Savings**: Actual savings achieved from approved optimizations
-- **Conversion Rate**: Percentage of identified savings that have been realized
-
-**Best Practices**:
-- Aim for 80%+ conversion rate of identified to realized savings
-- Focus on high-impact, low-risk recommendations first
-- Regular review of pending recommendations
-
-### Resource Utilization Overview
-
-**Purpose**: Understand the distribution and efficiency of your AWS resources.
-
-**Resource Categories**:
-- **EC2 Instances**: Compute resources and their utilization
-- **RDS Databases**: Database instances and performance metrics
-- **S3 Storage**: Storage usage and lifecycle optimization
-- **Other Services**: Load balancers, Redshift, additional services
-
-**Utilization Indicators**:
-- **Green**: Optimal utilization (70-90%)
-- **Yellow**: Moderate efficiency opportunities (50-70%)
-- **Red**: Significant optimization needed (<50%)
-
-### Activity Feed
-
-**Purpose**: Track recent optimization activities and their outcomes.
-
-**Activity Types**:
-- **New Recommendations**: Recently identified optimization opportunities
-- **Approvals**: Recommendations approved for implementation
-- **Optimizations Executed**: Completed cost-saving actions
-- **Cost Impact**: Realized savings from completed optimizations
-
-**How to Use**:
-1. Monitor the feed for new recommendations requiring attention
-2. Track the progress of approved optimizations
-3. Verify successful completion of cost-saving measures
-
-## Cost Analysis
-
-### Monthly Cost Trends
-
-#### Viewing Cost Trends
-1. **Navigate to Cost Analysis** page from the main navigation
-2. **Review the trend chart** showing 6 months of historical data
-3. **Analyze patterns** for seasonal trends or unusual spikes
-
-#### Understanding the Metrics
-
-**Chart Components**:
-- **Blue Line**: Historical monthly costs
-- **Orange Line**: Projected costs with current optimizations
-- **Green Areas**: Potential savings periods
-- **Red Areas**: Cost increase periods
-
-**Key Indicators**:
-- **Trend Direction**: Overall cost trajectory (increasing/decreasing)
-- **Volatility**: Month-to-month variance in spending
-- **Optimization Impact**: Difference between actual and projected costs
-
-#### Cost Breakdown Analysis
-
-**Service-Level Analysis**:
-```javascript
-// Example cost breakdown by service
-{
-  "EC2": "$12,450.23",
-  "RDS": "$3,240.18", 
-  "S3": "$1,890.45",
-  "Redshift": "$2,156.78"
-}
-```
-
-**Regional Distribution**:
-- Monitor costs across different AWS regions
-- Identify opportunities for regional optimization
-- Consider data transfer costs between regions
-
-### Savings Tracking
-
-#### Potential vs. Realized Savings
-
-**Potential Savings**:
-- Total monthly savings from all pending recommendations
-- Calculated based on current resource utilization
-- Updated daily as new recommendations are generated
-
-**Realized Savings**:
-- Actual cost reductions from approved and executed optimizations
-- Verified against monthly billing data
-- Tracked over time to measure optimization program success
-
-#### Savings Categories
-
-| Category | Typical Savings | Implementation Risk | Time to Realize |
-|----------|-----------------|-------------------|-----------------|
-| EC2 Rightsizing | 20-40% | Low | Immediate |
-| Reserved Instances | 30-60% | Low | 1-3 years |
-| Storage Optimization | 50-80% | Very Low | Immediate |
-| Unused Resources | 100% | Medium | Immediate |
-
-## Managing Recommendations
-
-### Understanding Recommendation Types
-
-#### 1. Resource Rightsizing
-**Purpose**: Optimize instance sizes based on actual utilization.
-
-**Common Scenarios**:
-- **Downsize EC2 instances** with consistently low CPU usage
-- **Upgrade under-performing instances** causing bottlenecks
-- **Switch instance families** for better price/performance ratio
-
-**Example Recommendation**:
-```json
-{
-  "type": "resize",
-  "priority": "high",
-  "title": "Downsize Over-Provisioned EC2 Instance",
-  "currentConfig": {
-    "instanceType": "m5.2xlarge",
-    "vcpus": 8,
-    "memory": "32 GiB"
-  },
-  "recommendedConfig": {
-    "instanceType": "m5.large", 
-    "vcpus": 2,
-    "memory": "8 GiB"
-  },
-  "projectedMonthlySavings": "185.50",
-  "riskLevel": "12.0"
-}
-```
-
-#### 2. Reserved Instance Optimization
-**Purpose**: Reduce costs through AWS Reserved Instance commitments.
-
-**Best For**:
-- Stable, predictable workloads running 24/7
-- Production environments with consistent usage
-- Long-term projects (1-3 years)
-
-**Savings Potential**: 30-60% compared to On-Demand pricing
-
-#### 3. Storage Class Optimization
-**Purpose**: Move infrequently accessed data to cheaper storage classes.
-
-**S3 Storage Classes**:
-- **Standard**: Frequently accessed data
-- **Standard-IA**: Infrequently accessed (30+ days)
-- **Glacier**: Long-term archival (90+ days)
-- **Deep Archive**: Rarely accessed (180+ days)
-
-#### 4. Resource Termination
-**Purpose**: Eliminate unused or idle resources.
-
-**Common Targets**:
-- Development instances running outside business hours
-- Unattached EBS volumes
-- Idle load balancers
-- Unused NAT gateways
-
-### Recommendation Priority Levels
-
-#### Critical Priority
-- **Risk Level**: Very low (0-5%)
-- **Impact**: High cost savings with minimal business risk
-- **Action Required**: Should be implemented immediately
-- **Examples**: Terminate unused resources, fix misconfigurations
-
-#### High Priority  
-- **Risk Level**: Low (5-15%)
-- **Impact**: Significant savings with manageable risk
-- **Action Required**: Review and implement within 1 week
-- **Examples**: Rightsize over-provisioned instances, storage optimization
-
-#### Medium Priority
-- **Risk Level**: Medium (15-25%)
-- **Impact**: Moderate savings requiring careful evaluation
-- **Action Required**: Assess impact and plan implementation
-- **Examples**: Instance family changes, reserved instance purchases
-
-#### Low Priority
-- **Risk Level**: Higher (25%+)
-- **Impact**: Potential savings but requires extensive testing
-- **Action Required**: Consider for future optimization cycles
-- **Examples**: Major architectural changes, multi-region optimizations
-
-### Bulk Approval Process
-
-#### Using the "Approve All" Feature
-1. **Navigate to the Dashboard** recommendations panel
-2. **Review pending recommendations** to ensure they align with your policies
-3. **Click "Approve All (X)"** where X is the number of pending recommendations
-4. **Monitor the progress** as the system processes all approvals
-5. **Verify completion** through the success notification showing total savings
-
-#### What Happens During Bulk Approval
-```javascript
-// Bulk approval process
-for (const recommendation of pendingRecommendations) {
-  // Create approval request
-  await createApprovalRequest({
-    recommendationId: recommendation.id,
-    status: 'approved',
-    approvedBy: currentUser,
-    comments: 'Bulk approved with X other recommendations'
-  });
-  
-  // Update recommendation status
-  await updateRecommendationStatus(recommendation.id, 'approved');
-  
-  // Log optimization history
-  await createOptimizationHistory({
-    recommendationId: recommendation.id,
-    executedBy: currentUser,
-    executionDate: new Date(),
-    actualSavings: recommendation.projectedMonthlySavings,
-    status: 'approved'
-  });
-}
-```
-
-#### Post-Approval Actions
-- **Real-time notifications** sent to Slack channels
-- **Dashboard metrics updated** with new realized savings
-- **Activity feed updated** with approval records
-- **Optimization history created** for audit trails
-
-## Approval Workflows
-
-### Enterprise Approval Process
-
-#### 1. Recommendation Generation
-- System analyzes AWS resources daily
-- Recommendations created with risk assessment
-- Initial status set to "pending"
-
-#### 2. Review and Assessment
-**Who**: Cloud platform team, DevOps engineers, resource owners
-**Timeline**: 24-48 hours for review
-**Process**:
-1. Evaluate business impact of proposed changes
-2. Assess risk level and mitigation strategies
-3. Coordinate with affected teams
-4. Schedule implementation window if needed
-
-#### 3. Approval Request Submission
-**Required Information**:
-- Recommendation details and justification
-- Requested by (engineer submitting for approval)
-- Approver role (typically "Head of Cloud Platform")
-- Implementation comments and special instructions
-
-**Example Approval Request**:
-```json
-{
-  "recommendationId": "rec-abc123",
-  "requestedBy": "john.doe@company.com",
-  "approverRole": "Head of Cloud Platform",
-  "comments": "Low-risk optimization for development environment. Implementation planned during maintenance window.",
-  "urgency": "normal"
-}
-```
-
-#### 4. Executive Approval
-**Approver Roles**:
-- **Head of Cloud Platform**: Technical optimizations under $10k annual savings
-- **Engineering Director**: Medium-impact changes $10k-$50k annual savings  
-- **CFO**: High-impact optimizations over $50k annual savings
-
-**Approval Criteria**:
-- Business impact assessment
-- Risk mitigation plans
-- ROI calculation and timeline
-- Compliance with governance policies
-
-#### 5. Implementation and Monitoring
-- Automated execution of approved optimizations
-- Real-time monitoring of implementation success
-- Rollback procedures for failed optimizations
-- Post-implementation validation and reporting
-
-### Approval Request Statuses
-
-| Status | Description | Next Actions |
-|--------|-------------|--------------|
-| **pending** | Awaiting approval decision | Review required |
-| **approved** | Ready for implementation | Execute optimization |
-| **rejected** | Not approved for implementation | Document reasoning, consider alternatives |
-| **executed** | Successfully implemented | Monitor performance, validate savings |
-| **failed** | Implementation unsuccessful | Investigate failure, plan retry |
-
-### Governance Integration
-
-#### Policy Compliance
-- All approvals tracked for audit purposes
-- Approval chains enforce spending authority limits
-- Automated policy checks before implementation
-
-#### Audit Trail
-```sql
--- Example optimization history record
-SELECT 
-  r.title,
-  oh.executed_by,
-  oh.execution_date,
-  oh.actual_savings,
-  oh.status,
-  ar.approver_role,
-  ar.approval_date
-FROM optimization_history oh
-JOIN recommendations r ON oh.recommendation_id = r.id
-JOIN approval_requests ar ON ar.recommendation_id = r.id
-WHERE oh.execution_date >= '2025-01-01';
-```
-
-## Automation & Governance
-
-### Automated Analysis Scheduling
-
-#### Daily Analysis Tasks
-**Time**: 6:00 AM UTC
-**Tasks**:
-1. **Cost Data Sync**: Import previous day's cost data from AWS Cost Explorer
-2. **Resource Discovery**: Scan for new AWS resources across all monitored regions
-3. **Utilization Analysis**: Process CloudWatch metrics for optimization opportunities
-4. **Recommendation Generation**: Create new cost optimization recommendations
-
-#### Weekly Analysis Tasks  
-**Time**: Sunday 8:00 AM UTC
-**Tasks**:
-1. **Trusted Advisor Sync**: Import AWS Trusted Advisor findings
-2. **Trend Analysis**: Analyze weekly cost and usage patterns
-3. **Recommendation Prioritization**: Update recommendation priorities based on utilization trends
-4. **Governance Report Generation**: Create weekly governance and compliance reports
-
-#### Monthly Analysis Tasks
-**Time**: 1st of month, 10:00 AM UTC  
-**Tasks**:
-1. **Monthly Cost Report**: Generate comprehensive cost analysis
-2. **Savings Validation**: Verify actual savings against projections
-3. **ROI Calculation**: Calculate return on investment for optimization program
-4. **Capacity Planning**: Forecast future resource and cost requirements
-
-### Governance Policies
-
-#### Automated Policy Enforcement
-
-**Resource Tagging Compliance**:
-```javascript
-// Example policy check
-const requiredTags = ['Environment', 'Team', 'Project', 'CostCenter'];
-const untaggedResources = resources.filter(resource => {
-  const tags = JSON.parse(resource.tags || '{}');
-  return !requiredTags.every(tag => tags[tag]);
-});
-```
-
-**Cost Threshold Monitoring**:
-- Alert when monthly costs exceed budget by 10%
-- Automatic approval required for optimizations over $5k annual savings
-- CFO approval mandatory for changes affecting production resources
-
-**Security and Compliance**:
-- All optimization activities logged for audit
-- Approval chains enforce separation of duties
-- Automated checks for PCI/SOX compliance requirements
-
-### Notification and Alerting
-
-#### Slack Integration
-**Setup Requirements**:
-- Slack workspace with bot permissions
-- Channel designated for FinOps notifications
-- Integration token configured in environment variables
-
-**Notification Types**:
-```javascript
-// New high-priority recommendation
-{
-  "type": "new_recommendation",
-  "priority": "critical", 
-  "title": "Urgent: Idle EC2 instance costing $500/month",
-  "potential_savings": "$500.00/month",
-  "action_required": "Review and approve termination"
-}
-
-// Optimization completed
-{
-  "type": "optimization_completed",
-  "title": "Successfully downsized RDS instance",
-  "actual_savings": "$245.67/month",
-  "status": "success"
-}
-
-// Monthly summary
-{
-  "type": "monthly_summary",
-  "total_savings": "$12,450.32",
-  "recommendations_processed": 15,
-  "success_rate": "93%"
-}
-```
-
-#### Email Alerts
-- Daily digest of new recommendations
-- Weekly optimization summary
-- Monthly cost and savings report
-- Critical alerts for budget threshold breaches
-
-## Real-Time Monitoring
-
-### WebSocket Integration
-
-#### Live Dashboard Updates
-The platform uses WebSocket connections to provide real-time updates without page refreshes.
-
-**Connection Setup**:
-```javascript
-// Client-side WebSocket connection
-const ws = new WebSocket('wss://your-domain/ws');
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  handleRealtimeUpdate(data);
-};
-```
-
-**Update Types**:
-- **new_recommendation**: New optimization opportunity identified
-- **approval_request**: Recommendation submitted for approval  
-- **optimization_executed**: Optimization implementation completed
-- **bulk_approval**: Multiple recommendations approved simultaneously
-- **cost_alert**: Spending threshold exceeded
-
-#### Automatic Data Refresh
-**Query Invalidation**: When real-time events occur, the frontend automatically refreshes related data:
-
-```javascript
-// Example: After bulk approval, refresh all related queries
-queryClient.invalidateQueries({ queryKey: ['/api/recommendations'] });
-queryClient.invalidateQueries({ queryKey: ['/api/dashboard/metrics'] });
-queryClient.invalidateQueries({ queryKey: ['/api/optimization-history'] });
-```
-
-### Performance Monitoring
-
-#### System Health Metrics
-- **API Response Times**: Monitor for degradation in API performance
-- **Database Query Performance**: Track slow queries and optimization opportunities
-- **WebSocket Connection Health**: Monitor real-time connection stability
-- **AWS API Rate Limits**: Ensure compliance with AWS API throttling
-
-#### Cost Optimization Metrics
-- **Recommendation Accuracy**: Track how often projections match actual results
-- **Implementation Success Rate**: Monitor failed optimization attempts
-- **Time to Value**: Measure time from recommendation to realized savings
-
-## API Reference
-
-### Authentication
-All API endpoints require valid session authentication. Ensure you're logged in before making API calls.
-
-### Core Endpoints
-
-#### Dashboard Metrics
-```http
-GET /api/dashboard/metrics
-```
-**Response**:
-```json
-{
-  "monthlySpend": 18501.68,
-  "identifiedSavings": 3245.67,
-  "realizedSavings": 12456.89,
-  "resourcesAnalyzed": 234,
-  "wastePercentage": 17.5,
-  "trendsData": {
-    "currentMonth": 18501.68,
-    "lastMonth": 19234.12,
-    "changePercentage": -3.8
-  }
-}
-```
-
-#### Cost Trends
-```http
-GET /api/dashboard/cost-trends
-```
-**Response**:
-```json
-[
-  {
-    "month": "2025-01",
-    "totalCost": 18501.68,
-    "projectedCost": 15234.12,
-    "potentialSavings": 3267.56
-  }
-]
-```
-
-#### Recommendations
-```http
-GET /api/recommendations?status=pending
-```
-**Parameters**:
-- `status` (optional): Filter by status (pending, approved, rejected, executed)
-
-**Response**:
-```json
-[
-  {
-    "id": "rec-abc123",
-    "resourceId": "i-1234567890abcdef0",
-    "type": "resize",
-    "priority": "high",
-    "title": "Downsize Over-Provisioned EC2 Instance",
-    "description": "Instance shows consistently low utilization...",
-    "currentConfig": {
-      "instanceType": "m5.2xlarge",
-      "vcpus": 8,
-      "memory": "32 GiB"
-    },
-    "recommendedConfig": {
-      "instanceType": "m5.large",
-      "vcpus": 2, 
-      "memory": "8 GiB"
-    },
-    "projectedMonthlySavings": "185.50",
-    "projectedAnnualSavings": "2226.00",
-    "riskLevel": "12.0",
-    "status": "pending",
-    "createdAt": "2025-09-13T10:30:00Z"
-  }
-]
-```
-
-#### Create Approval Request
-```http
-POST /api/approval-requests
-```
-**Request Body**:
-```json
-{
-  "recommendationId": "rec-abc123",
-  "requestedBy": "john.doe@company.com",
-  "approverRole": "Head of Cloud Platform",
-  "comments": "Low-risk optimization for development environment"
-}
-```
-
-#### Bulk Approve Recommendations
-```http
-POST /api/approve-all-recommendations
-```
-**Request Body**:
-```json
-{
-  "approvedBy": "jane.smith@company.com",
-  "comments": "Quarterly bulk approval of low-risk optimizations"
-}
-```
-
-**Response**:
-```json
-{
-  "message": "Successfully approved 4 of 4 pending recommendations",
-  "approvedCount": 4,
-  "totalAttempted": 4,
-  "totalAnnualSavings": 4855.56,
-  "recommendations": [
-    {
-      "id": "rec-abc123",
-      "title": "Downsize Development Database Instance", 
-      "projectedAnnualSavings": "758.16"
-    }
-  ],
-  "errors": []
-}
-```
-
-#### AWS Resources
-```http
-GET /api/aws-resources
-```
-**Response**:
-```json
-[
-  {
-    "id": "res-xyz789",
-    "resourceId": "i-1234567890abcdef0",
-    "resourceType": "EC2",
-    "region": "us-east-1",
-    "currentConfig": {
-      "instanceType": "m5.2xlarge",
-      "state": "running"
-    },
-    "utilizationMetrics": {
-      "cpuUtilization": 25.5,
-      "memoryUtilization": 40.2
-    },
-    "monthlyCost": "245.76",
-    "lastAnalyzed": "2025-09-13T10:00:00Z"
-  }
-]
-```
-
-#### Optimization History
-```http
-GET /api/optimization-history?limit=50
-```
-**Parameters**:
-- `limit` (optional): Number of records to return (default: 50)
-
-**Response**:
-```json
-[
-  {
-    "id": "hist-def456",
-    "recommendationId": "rec-abc123",
-    "executedBy": "john.doe@company.com",
-    "executionDate": "2025-09-13T14:30:00Z",
-    "beforeConfig": {
-      "instanceType": "m5.2xlarge"
-    },
-    "afterConfig": {
-      "instanceType": "m5.large"
-    },
-    "actualSavings": "185.50",
-    "status": "success"
-  }
-]
-```
-
-### Data Management Endpoints
-
-#### Generate Test Data
-```http
-POST /api/generate-aws-data
-```
-**Response**:
-```json
-{
-  "resourcesCount": 8,
-  "recommendationsCount": 4,
-  "message": "AWS simulation data generated successfully"
-}
-```
-
-#### Clear Test Data
-```http
-POST /api/clear-simulation-data
-```
-**Response**:
-```json
-{
-  "message": "All simulation data cleared successfully"
-}
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### 1. No Recommendations Appearing
-
-**Symptoms**: Dashboard shows 0 recommendations despite having AWS resources.
-
-**Possible Causes**:
-- AWS credentials not configured correctly
-- Resources haven't been analyzed yet (wait for daily analysis cycle)
-- All resources are optimally configured
-
-**Solutions**:
-1. **Check AWS Integration**:
-   ```bash
-   # Verify AWS credentials
-   curl GET /api/aws-resources
-   ```
-
-2. **Trigger Manual Analysis**:
-   ```bash
-   # Generate fresh recommendations
-   curl -X POST /api/generate-aws-data
-   ```
-
-3. **Review Resource Utilization**:
-   - Ensure CloudWatch metrics are being collected
-   - Verify resources have sufficient historical data (7+ days)
-
-#### 2. Cost Data Not Updating
-
-**Symptoms**: Cost trends showing stale data or $0 costs.
-
-**Possible Causes**:
-- AWS Cost Explorer API permissions missing
-- Cost data not yet available from AWS (24-48 hour delay)
-- Analysis scheduler not running
-
-**Solutions**:
-1. **Verify Cost Explorer Access**:
-   - Ensure IAM role has `ce:GetCostAndUsage` permission
-   - Check AWS Cost Explorer is enabled in your account
-
-2. **Check Analysis Schedule**:
-   - Verify daily cost sync is running at 6 AM UTC
-   - Review server logs for cost data import errors
-
-3. **Manual Cost Data Import**:
-   ```bash
-   # Trigger cost data sync
-   curl -X POST /api/sync-cost-data
-   ```
-
-#### 3. Approval Workflow Issues
-
-**Symptoms**: Approved recommendations not executing or stuck in pending state.
-
-**Possible Causes**:
-- Missing execution permissions
-- AWS API rate limiting
-- Resource dependencies preventing changes
-
-**Solutions**:
-1. **Check Approval Status**:
-   ```bash
-   # Review approval request details
-   curl GET /api/approval-requests/{request-id}
-   ```
-
-2. **Review Execution Logs**:
-   - Check optimization history for error messages
-   - Verify AWS permissions for resource modifications
-
-3. **Manual Retry**:
-   ```bash
-   # Retry failed optimization
-   curl -X PATCH /api/approval-requests/{request-id} 
-   -d '{"status": "approved"}'
-   ```
-
-#### 4. Real-Time Updates Not Working
-
-**Symptoms**: Dashboard not updating automatically, manual refresh required.
-
-**Possible Causes**:
-- WebSocket connection failure
-- Browser blocking WebSocket connections
-- Server WebSocket configuration issues
-
-**Solutions**:
-1. **Check WebSocket Connection**:
-   - Open browser developer tools
-   - Look for WebSocket connection errors in Console tab
-
-2. **Network Configuration**:
-   - Verify firewall allows WebSocket connections
-   - Check proxy settings aren't blocking WebSocket traffic
-
-3. **Browser Compatibility**:
-   - Try different browser or incognito mode
-   - Clear browser cache and cookies
-
-### Performance Optimization
-
-#### Dashboard Loading Slowly
-
-**Optimization Steps**:
-1. **Enable Query Caching**: Ensure React Query cache is working properly
-2. **Optimize Database Queries**: Review slow query logs
-3. **Resource Cleanup**: Remove old optimization history records
-4. **Database Indexing**: Ensure proper indexes on frequently queried columns
-
-#### High Memory Usage
-
-**Monitoring and Fixes**:
-1. **Monitor Node.js Memory**: Use `process.memoryUsage()` to track heap usage
-2. **Database Connection Pooling**: Verify connection pool limits
-3. **Resource Cleanup**: Implement proper cleanup for large data processing
-
-### Getting Help
-
-#### Support Channels
-1. **Internal Documentation**: Check company wiki for AWS-specific configurations
-2. **Technical Support**: Contact DevOps team for infrastructure issues
-3. **Business Questions**: Reach out to FinOps team for policy and process questions
-
-#### Log Files and Debugging
-```bash
-# Server logs
-tail -f /var/log/finops-autopilot/server.log
-
-# Database query logs  
-tail -f /var/log/postgresql/postgresql.log
-
-# Application metrics
-curl GET /api/health
-```
-
-#### Diagnostic API
-```http
-GET /api/diagnostics
-```
-**Response includes**:
-- System health status
-- Database connection status
-- AWS API connectivity
-- Last successful data sync timestamps
-- Current recommendation counts by status
+7. [Automation & Rules](#automation--rules)
+8. [AI Analysis Modes](#ai-analysis-modes)
+9. [Real-Time Monitoring](#real-time-monitoring)
+10. [API Reference](#api-reference)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
-*This documentation is maintained by the Platform Engineering team. For updates or corrections, please submit a pull request or contact the maintainers.*
+## Overview
+
+FinOps Autopilot is an enterprise cloud cost optimization platform that automatically analyzes your AWS infrastructure, identifies cost-saving opportunities, and provides actionable recommendations to reduce cloud spending.
+
+### Who Is This For?
+
+**FinOps practitioners** who need to:
+- Review and approve cost optimization recommendations
+- Monitor AWS spending and savings
+- Execute optimizations quickly with confidence
+
+This is an **operational tool**, not an executive reporting tool. It's designed to help you take action fast.
+
+### Key Benefits
+
+- **Automated Cost Analysis**: Continuous monitoring of AWS resources
+- **AI-Powered Recommendations**: Advanced analysis using Google Gemini 2.0 Flash
+- **Dual-Mode Operation**: Autonomous (auto-execute) and HITL (human approval)
+- **Real-Time Insights**: Live dashboard with instant updates
+- **Slack Integration**: Notifications for team collaboration
+
+---
+
+## Getting Started
+
+### For Demo/Evaluation
+
+1. **Open the application** in your browser
+2. **Register an account** (admin role recommended for full access)
+3. **Login** to see the main Dashboard
+4. **Watch recommendations** generate automatically (in simulation mode)
+5. **Try approving** a recommendation from the Action Required section
+
+### For Production Use
+
+1. Set `SIMULATION_MODE=false` in environment
+2. Configure AWS credentials:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - `AWS_REGION` (optional, defaults to us-east-1)
+3. Configure Slack integration (optional)
+4. Enable Production Mode for AI-powered analysis
+
+---
+
+## Dashboard Overview
+
+The dashboard is your command center. It's organized to show you **what needs your attention** first.
+
+### Dashboard Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  FinOps Autopilot                          [Prod Mode ○]    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ACTION REQUIRED              │  This Month                 │
+│  ┌────────────────────────┐   │  ─────────────────────      │
+│  │ N pending approval     │   │  AWS Spend: $XXX            │
+│  │ Est. savings: $XX/mo   │   │  Realized Savings: $XXX     │
+│  │ [Review Queue →]       │   │                             │
+│  └────────────────────────┘   │  Agent Performance          │
+│  ┌────────────────────────┐   │  ─────────────────────      │
+│  │ Top pending items...   │   │  Auto-executed: XX          │
+│  └────────────────────────┘   │  Reviewed: XX               │
+│                               │  Last action: Xm ago        │
+├─────────────────────────────────────────────────────────────┤
+│  PRIORITY RECOMMENDATIONS                                   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ CRITICAL  RDS Right-Sizing      $52K/mo  [Review]    │   │
+│  │ HIGH      Reduce EC2 Capacity   $4K/mo   [Review]    │   │
+│  └──────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│  SYSTEM STATUS                                              │
+│  Input Sources → AI Processing → Output Results             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Action Required Section
+
+This is the **hero section** at the top. It shows:
+
+- **Pending approval count**: How many recommendations need your review
+- **Estimated savings**: Total monthly savings if you approve all pending items
+- **Quick preview**: Top 3 pending items for fast action
+- **Review Queue button**: Takes you to the full recommendations page
+
+When there's nothing pending, you'll see "All caught up!" with a green checkmark.
+
+### This Month Summary
+
+On the right side, you'll see:
+
+- **AWS Spend**: Current month's total cloud costs
+- **Realized Savings**: Actual savings from executed optimizations (YTD)
+- **Agent Performance**: Counts of auto-executed and reviewed items
+- **Last action**: When the agent last did something (e.g., "5m ago")
+
+### Priority Recommendations
+
+Below the hero section, you'll see the full **approval queue** with:
+
+- Filter buttons: All, Autonomous, HITL, Pending
+- Priority badges: CRITICAL, HIGH, MEDIUM, LOW
+- Execution mode badges: Auto-Optimized, Needs Approval, Awaiting Execution
+- Savings amount for each recommendation
+- "Review & Approve" button for each item
+- "Approve All" button for bulk approval
+
+### System Status
+
+Shows the data flow pipeline:
+- **Input Sources**: EC2 instances, RDS databases, S3 buckets, CloudWatch
+- **AI Processing**: FinOps AI Agent doing analysis
+- **Output Results**: Recommendations, savings, optimizations
+
+---
+
+## Managing Recommendations
+
+### Recommendation Types
+
+| Type | What it does | Example |
+|------|--------------|---------|
+| **Rightsizing** | Suggests smaller instance types | "Downsize from m5.xlarge to m5.large" |
+| **Scheduling** | Stop resources during off-hours | "Stop dev DB outside business hours" |
+| **Storage Tiering** | Move to cheaper storage classes | "Convert gp2 volume to gp3" |
+| **Termination** | Remove unused resources | "Terminate idle EC2 instance" |
+
+### Priority Levels
+
+| Priority | Risk | Action Timeline |
+|----------|------|-----------------|
+| **CRITICAL** | Very Low (0-5%) | Implement immediately |
+| **HIGH** | Low (5-15%) | Review within 1 week |
+| **MEDIUM** | Medium (15-25%) | Assess and plan |
+| **LOW** | Higher (25%+) | Consider for future |
+
+### Execution Modes
+
+**Autonomous Mode** (green badge):
+- Low-risk recommendations
+- Execute automatically without approval
+- Example: Storage class optimization
+
+**HITL Mode** (amber badge):
+- Higher-risk or high-impact changes
+- Require your approval before execution
+- Example: Resizing production database
+
+### Reviewing a Recommendation
+
+1. Click **"Review & Approve"** on any recommendation
+2. Review the modal showing:
+   - Current configuration
+   - Recommended configuration
+   - Impact analysis (monthly/annual savings, risk level)
+3. Click **"Approve Optimization"** or **"Reject"**
+4. The recommendation moves to the appropriate status
+
+### Bulk Approval
+
+For trusted low-risk items:
+1. Review the pending list
+2. Click **"Approve All (X)"** button
+3. All pending items are approved at once
+4. See the toast notification with total savings
+
+---
+
+## Approval Workflows
+
+### Workflow Stages
+
+1. **Pending** → Awaiting your review
+2. **Approved** → Ready for execution
+3. **Executed** → Successfully implemented
+4. **Rejected** → Declined (won't be implemented)
+
+### What Happens After Approval
+
+1. System records the approval with your user ID
+2. Creates optimization history for audit trail
+3. Updates dashboard metrics immediately
+4. Sends Slack notification (if configured)
+5. For autonomous items: executes the optimization
+
+---
+
+## Cost Analysis
+
+Navigate to **Cost Analysis** from the sidebar to see:
+
+### Cost Breakdown by Service
+
+- EC2 (Compute)
+- RDS (Database)
+- S3 (Storage)
+- Redshift (Data Warehouse)
+- Other services
+
+### Monthly Trends
+
+- 6-month historical chart
+- Spend vs. savings visualization
+- Month-over-month comparison
+
+### Service Details
+
+Click into any service category to see:
+- Individual resource costs
+- Utilization metrics
+- Optimization opportunities
+
+---
+
+## Automation & Rules
+
+Navigate to **Rules** from the sidebar to configure:
+
+### Autonomous Execution Settings
+
+- **Enable/disable autonomous mode**: Toggle auto-execution
+- **Max risk level**: Set threshold for auto-approval (e.g., 15%)
+- **Minimum savings threshold**: Only auto-execute above certain savings
+- **Auto-execute types**: Select which recommendation types can auto-execute
+
+### Governance
+
+Navigate to **Governance** to set:
+
+- Approval chains for high-value optimizations
+- Compliance policies
+- Audit requirements
+
+---
+
+## AI Analysis Modes
+
+### Production Mode (AI + RAG)
+
+**Technology**: Google Gemini 2.0 Flash with Pinecone vector database
+
+**When to use**:
+- Production environments
+- Complex infrastructure
+- When AWS credentials are available
+
+**Features**:
+- Scheduled analysis every 6 hours
+- Manual trigger via "Run AI Analysis Now"
+- Higher accuracy than rule-based
+
+**How to enable**:
+1. Go to **Agent Config** (admin only)
+2. Toggle **Production Mode** ON
+
+### Simulation Mode (Demo)
+
+**Technology**: Rule-based heuristic engine
+
+**When to use**:
+- Demos and testing
+- No AWS credentials available
+- Learning the platform
+
+**Features**:
+- Generates synthetic AWS data
+- Creates 2-5 recommendations every 3 seconds
+- All features work identically to production
+
+---
+
+## Real-Time Monitoring
+
+### WebSocket Updates
+
+The dashboard updates automatically via WebSocket:
+- New recommendations appear instantly
+- Metrics refresh in real-time
+- No manual page refresh needed
+
+### Notification Types
+
+- **new_recommendation**: New optimization found
+- **optimization_executed**: Optimization completed
+- **bulk_approval**: Multiple items approved
+
+### Last Action Timestamp
+
+The "Last action" indicator shows when the agent last acted:
+- "Just now" - within the last minute
+- "5m ago" - 5 minutes ago
+- "2h ago" - 2 hours ago
+- "1d ago" - 1 day ago
+
+---
+
+## API Reference
+
+### Core Endpoints
+
+#### Get Metrics Summary
+```http
+GET /api/metrics/summary
+```
+Returns: monthlySpend, ytdSpend, pendingApprovalCount, realizedSavingsYTD, lastActionTimestamp
+
+#### Get Recommendations
+```http
+GET /api/recommendations
+```
+Returns: Array of all recommendations with status, priority, savings
+
+#### Bulk Approve
+```http
+POST /api/approve-all-recommendations
+```
+Body: `{ approvedBy, comments }`
+Returns: approvedCount, totalAnnualSavings
+
+#### Get Optimization Mix
+```http
+GET /api/metrics/optimization-mix
+```
+Returns: autonomousCount, hitlCount, percentages
+
+### Authentication
+
+All endpoints require JWT authentication. Token is passed via:
+- HTTP header: `Authorization: Bearer <token>`
+- WebSocket: Query parameter `?token=<token>`
+
+---
+
+## Troubleshooting
+
+### No Recommendations Appearing
+
+**Check**:
+1. Is simulation mode enabled? (should generate automatically)
+2. Are AWS credentials configured? (for production mode)
+3. Has the analysis run? (check last action timestamp)
+
+**Fix**: Go to Agent Config and click "Run AI Analysis Now"
+
+### Dashboard Not Updating
+
+**Check**:
+1. WebSocket connection (browser dev tools → Network → WS)
+2. Browser console for errors
+3. Network connectivity
+
+**Fix**: Refresh the page; check if WebSocket reconnects
+
+### Approval Not Working
+
+**Check**:
+1. Your user role (admin required for some actions)
+2. Recommendation status (must be "pending")
+3. Network request in dev tools
+
+**Fix**: Check browser console for error messages; verify login session
+
+### Metrics Showing Wrong Numbers
+
+**Check**:
+1. Data refresh interval (every 3 seconds)
+2. Filter settings on recommendations panel
+3. Time range for cost data
+
+**Fix**: Clear browser cache; logout and login again
+
+---
+
+## Navigation Reference
+
+```
+OPERATIONS
+├── Dashboard          ← Main view (start here)
+├── Cost Analysis      ← Detailed cost breakdown
+└── Recommendations    ← Full history/search (red badge shows pending count)
+
+AUTOMATION
+├── Rules              ← Configure automation
+└── Governance         ← Compliance policies
+
+AI CONFIGURATION (Admin only)
+└── Agent Config       ← AI model settings
+
+HELP
+├── FAQ               ← Common questions
+└── User Guide        ← This guide (in-app)
+```
+
+---
+
+*For additional help, check the FAQ page or contact your FinOps team administrator.*
