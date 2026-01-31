@@ -258,8 +258,9 @@ export class DataGenerator {
       'CloudFront', 'Lambda', 'EBS', 'Data Transfer'
     ];
 
-    // Generate data for past 6 months
-    for (let monthsBack = 6; monthsBack >= 0; monthsBack--) {
+    // Generate data for past 12 months through current month
+    // This ensures we always have current-period data for the dashboard
+    for (let monthsBack = 12; monthsBack >= 0; monthsBack--) {
       const reportDate = new Date();
       reportDate.setMonth(reportDate.getMonth() - monthsBack);
       reportDate.setDate(1); // First of month
@@ -268,7 +269,9 @@ export class DataGenerator {
         const baseCost = this.getBaseCostForService(service);
         // Add some randomness (±20%)
         const variation = (Math.random() - 0.5) * 0.4;
-        const cost = baseCost * (1 + variation);
+        // Apply slight growth trend: older months are ~5% cheaper per month back
+        const growthFactor = 1 + (monthsBack * 0.005); // 0.5% growth per month
+        const cost = (baseCost / growthFactor) * (1 + variation);
         
         await this.storage.createCostReport({
           tenantId: SYSTEM_TENANT_ID,
