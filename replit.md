@@ -2,7 +2,7 @@
 
 **Enterprise Cloud Cost Optimization Platform**
 
-Last Updated: November 2025
+Last Updated: January 2026
 
 ---
 
@@ -11,6 +11,8 @@ Last Updated: November 2025
 FinOps Autopilot is an intelligent platform that automatically finds ways to reduce your AWS cloud spending. It monitors your cloud resources 24/7, identifies waste, and either fixes problems automatically or asks for your approval before making changes.
 
 **The core value proposition**: Reduce cloud costs by 20-40% through automated analysis and intelligent recommendations, while maintaining full control over high-risk changes.
+
+**Target User**: FinOps practitioners who need to approve actions fast. This is an operational tool, not an executive reporting tool.
 
 ---
 
@@ -62,23 +64,52 @@ FinOps Autopilot is an intelligent platform that automatically finds ways to red
 
 ---
 
-### 4. Executive Dashboard
+### 4. Consolidated Dashboard
 
-**What it does**: Provides real-time visibility into cloud spending and optimization progress.
+**What it does**: Provides a single action-focused view for FinOps practitioners.
+
+**Dashboard Structure**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  FinOps Autopilot                          [Prod Mode ○]    │
+├─────────────────────────────────────────────────────────────┤
+│  ACTION REQUIRED (N)          │  This Month                 │
+│  ┌────────────────────────┐   │  ──────────────────────     │
+│  │ 🔴 N pending approval  │   │  AWS Spend: $XXX            │
+│  │    Est. savings: $XX/mo│   │  Realized Savings: $XXX     │
+│  │    [Review Queue →]    │   │                             │
+│  └────────────────────────┘   │  Agent Performance          │
+│  ┌────────────────────────┐   │  ──────────────────────     │
+│  │ Top pending items...   │   │  Auto-executed: XX          │
+│  └────────────────────────┘   │  Reviewed: XX               │
+│                               │  Last action: Xm ago        │
+├─────────────────────────────────────────────────────────────┤
+│  APPROVAL QUEUE (Priority Recommendations)                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ 🔴 CRITICAL  RDS Right-Sizing      $52K/mo  [Review] │   │
+│  │ 🟡 HIGH      Reduce EC2 Capacity   $4K/mo   [Review] │   │
+│  └──────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│  SYSTEM STATUS (Data Flow Pipeline)                         │
+│  Input Sources → AI Processing → Output Results             │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Key metrics displayed**:
 - **Monthly Spend**: Current month's cloud costs
-- **YTD Spend**: Year-to-date total spending
-- **Identified Savings**: Total potential savings found
-- **Realized Savings**: Actual savings from executed optimizations
-- **Waste Optimized %**: Percentage of waste eliminated
+- **Realized Savings**: Actual savings from executed optimizations (YTD)
+- **Pending Approval**: Count + sum of HITL recommendations awaiting approval
+- **Agent Performance**: Auto-executed count, reviewed count
+- **Last Action**: Timestamp showing when the agent last acted
 
 **Dashboard features**:
-- Auto-refreshes every 10 seconds
-- Top 6 priority recommendations panel
+- Auto-refreshes every 3 seconds
+- Action Required hero section with pending queue preview
+- Priority recommendations panel with filters
 - Execution mode filters (All, Autonomous, HITL, Pending)
-- AI analysis history with drill-down details
-- Status banner when autonomous mode is disabled
+- System Status showing data flow pipeline
+- Last action timestamp to show agent is working
 
 ---
 
@@ -97,6 +128,7 @@ FinOps Autopilot is an intelligent platform that automatically finds ways to red
 - Approval history tracking
 - Execution status monitoring
 - Slack notifications for new recommendations and completions
+- Bulk approval button ("Approve All")
 
 ---
 
@@ -167,6 +199,29 @@ FinOps Autopilot is an intelligent platform that automatically finds ways to red
 
 ---
 
+## Navigation Structure
+
+```
+OPERATIONS
+├── Dashboard          ← Consolidated main view (Action Required + Queue)
+├── Cost Analysis      ← Detailed cost breakdown
+└── Recommendations    ← Full recommendation history/search
+
+AUTOMATION
+├── Rules              ← Automation configuration
+└── Governance         ← Compliance policies
+
+AI CONFIGURATION (Admin only)
+└── Agent Config       ← AI model settings
+
+HELP
+└── FAQ
+```
+
+**Note**: The navigation shows a red badge with pending count on "Recommendations" when items need approval.
+
+---
+
 ## Operating Modes
 
 ### Simulation Mode (Default)
@@ -222,9 +277,9 @@ FinOps Autopilot is an intelligent platform that automatically finds ways to red
 ### For Demo/Evaluation
 1. Open the application
 2. Register an account (admin role recommended)
-3. Login to see the Executive Dashboard
+3. Login to see the Dashboard
 4. Watch recommendations generate automatically
-5. Try approving/rejecting HITL recommendations
+5. Try approving/rejecting HITL recommendations in the Action Required section
 
 ### For Production Use
 1. Set `SIMULATION_MODE=false` in environment
@@ -289,9 +344,13 @@ FinOps Autopilot is an intelligent platform that automatically finds ways to red
 | `server/services/aws.ts` | AWS SDK integration |
 | `server/services/config.ts` | Configuration management |
 | `server/services/heuristic-engine.ts` | Rule-based recommendations |
-| `server/storage.ts` | Database operations |
+| `server/storage.ts` | Database operations + metrics calculation |
 | `shared/schema.ts` | Data models and types |
-| `client/src/pages/Dashboard.tsx` | Executive dashboard UI |
+| `client/src/pages/dashboard.tsx` | Main dashboard UI |
+| `client/src/components/dashboard/action-required.tsx` | Action Required hero section |
+| `client/src/components/dashboard/recommendations-panel.tsx` | Approval queue panel |
+| `client/src/components/data-flow-viz.tsx` | System Status visualization |
+| `client/src/components/layout/sidebar.tsx` | Navigation with pending badge |
 | `client/src/lib/queryClient.ts` | API client and caching |
 
 ---
@@ -320,8 +379,18 @@ FinOps Autopilot is an intelligent platform that automatically finds ways to red
 
 ---
 
-## Recent Updates (November 2025)
+## Recent Updates (January 2026)
 
+### UX Overhaul
+1. **Consolidated Dashboard**: Removed separate Executive Dashboard, merged into single action-focused view
+2. **Action Required Hero**: New hero section showing pending approval count + savings with queue preview
+3. **Pending Badge**: Navigation shows red badge with pending count on Recommendations
+4. **Last Action Timestamp**: Shows when agent last acted (e.g., "5m ago")
+5. **Fixed KPI Metrics**: Shows actual pending count from queue, not misleading aggregate totals
+6. **Navigation Cleanup**: Renamed "Automation & Governance" to "Automation", "Automation" to "Rules"
+7. **System Status**: Renamed "Data Flow Pipeline" to "System Status"
+
+### Previous Updates (November 2025)
 1. **Supabase Migration**: Moved from Neon to Supabase PostgreSQL
 2. **HTTP 304 Fix**: Resolved caching issue causing false error messages
 3. **Three-Layer AWS Defense**: Reliable operation without AWS credentials
@@ -340,6 +409,29 @@ FinOps Autopilot is an intelligent platform that automatically finds ways to red
 - Slack is only notification channel
 
 See `roadmap_finops.md` for planned improvements.
+
+---
+
+## API Endpoints Reference
+
+### Metrics
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/metrics/summary` | GET | Dashboard metrics (spend, savings, pending counts) |
+| `/api/metrics/optimization-mix` | GET | Autonomous vs HITL distribution |
+
+### Recommendations
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/recommendations` | GET | List all recommendations |
+| `/api/recommendations/:id` | GET | Get single recommendation |
+| `/api/approve-all-recommendations` | POST | Bulk approve pending (admin) |
+
+### Approvals
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/approval-requests` | POST | Create approval request |
+| `/api/approval-requests/:id` | PATCH | Update approval status |
 
 ---
 
