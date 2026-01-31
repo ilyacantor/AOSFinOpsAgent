@@ -713,24 +713,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const approvalRequest = await storage.createApprovalRequest(approvalRequestData as any, tenantId);
       console.log("Created approval request:", approvalRequest);
       
-      // If approved, update the recommendation status and create activity entry
+      // If approved, execute the optimization and update status to 'executed'
       if (req.body.status === 'approved') {
-        console.log("Updating recommendation status to approved for:", validatedData.recommendationId);
-        await storage.updateRecommendationStatus(validatedData.recommendationId, 'approved', tenantId);
+        console.log("Processing approval for recommendation:", validatedData.recommendationId);
         
-        // Get the recommendation details for the activity entry
         if (recommendation) {
-          console.log("Creating activity entry for approval");
-          await storage.createOptimizationHistory({
-            tenantId,
-            recommendationId: validatedData.recommendationId,
-            executedBy: req.user?.userId || validatedData.approvedBy || 'system',
-            executionDate: new Date(),
-            beforeConfig: recommendation.currentConfig as any,
-            afterConfig: recommendation.recommendedConfig as any,
-            actualSavings: recommendation.projectedMonthlySavings,
-            status: 'approved'
-          }, tenantId);
+          // Execute the optimization (same logic as bulk approval)
+          try {
+            let execResult;
+            if (recommendation.type === 'resize' && recommendation.resourceId.includes('redshift')) {
+              const config = recommendation.recommendedConfig as any;
+              execResult = await awsService.resizeRedshiftCluster(
+                recommendation.resourceId,
+                config.nodeType,
+                config.numberOfNodes
+              );
+            }
+
+            // Update recommendation status to 'executed'
+            await storage.updateRecommendationStatus(validatedData.recommendationId, 'executed', tenantId);
+            console.log("Updated recommendation status to executed:", validatedData.recommendationId);
+
+            // Create optimization history with 'success' status
+            await storage.createOptimizationHistory({
+              tenantId,
+              recommendationId: validatedData.recommendationId,
+              executedBy: req.user?.userId || validatedData.approvedBy || 'system',
+              executionDate: new Date(),
+              beforeConfig: recommendation.currentConfig as any,
+              afterConfig: recommendation.recommendedConfig as any,
+              actualSavings: recommendation.projectedMonthlySavings,
+              status: 'success'
+            }, tenantId);
+
+            // Audit log for execution
+            await logAudit(req, {
+              action: auditActions.EXECUTE,
+              resourceType: auditResourceTypes.OPTIMIZATION,
+              resourceId: validatedData.recommendationId,
+              metadata: { tenantId, status: 'success', savings: recommendation.projectedMonthlySavings }
+            });
+
+            // Send Slack notification
+            try {
+              await sendOptimizationComplete(recommendation.title, recommendation.projectedMonthlySavings);
+            } catch (slackError) {
+              // Don't fail the approval if Slack fails
+            }
+
+            console.log("Successfully executed recommendation:", recommendation.title);
+          } catch (execError) {
+            // Execution failed - still mark as approved but log the error
+            console.error("Execution error:", execError);
+            await storage.updateRecommendationStatus(validatedData.recommendationId, 'approved', tenantId);
+            
+            await storage.createOptimizationHistory({
+              tenantId,
+              recommendationId: validatedData.recommendationId,
+              executedBy: req.user?.userId || validatedData.approvedBy || 'system',
+              executionDate: new Date(),
+              beforeConfig: recommendation.currentConfig as any,
+              afterConfig: recommendation.recommendedConfig as any,
+              actualSavings: 0,
+              status: 'failed'
+            }, tenantId);
+          }
         }
       }
       
