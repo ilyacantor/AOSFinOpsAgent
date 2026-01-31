@@ -102,46 +102,6 @@ app.use('/api/*', readLimiter);
 
   logger.info('JWT_SECRET validated successfully', { length: JWT_SECRET.length });
 
-  // Validate ALLOWED_ORIGINS in production - fail fast if missing or invalid
-  const isProduction = process.env.NODE_ENV === 'production';
-  if (isProduction) {
-    const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS;
-    
-    if (!ALLOWED_ORIGINS || ALLOWED_ORIGINS.trim().length === 0) {
-      console.error('╔═══════════════════════════════════════════════════════════════════╗');
-      console.error('║ CRITICAL SECURITY ERROR: ALLOWED_ORIGINS not set in production  ║');
-      console.error('╟───────────────────────────────────────────────────────────────────╢');
-      console.error('║ The ALLOWED_ORIGINS environment variable is required in          ║');
-      console.error('║ production to prevent CORS security vulnerabilities.             ║');
-      console.error('║                                                                   ║');
-      console.error('║ Please set ALLOWED_ORIGINS to a comma-separated list of          ║');
-      console.error('║ allowed origins.                                                  ║');
-      console.error('║                                                                   ║');
-      console.error('║ Example:                                                          ║');
-      console.error('║   export ALLOWED_ORIGINS=https://example.com,https://app.com     ║');
-      console.error('╚═══════════════════════════════════════════════════════════════════╝');
-      process.exit(1);
-    }
-
-    // Check for wildcard origin in production
-    const origins = ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
-    if (origins.includes('*')) {
-      console.error('╔═══════════════════════════════════════════════════════════════════╗');
-      console.error('║ CRITICAL SECURITY ERROR: Wildcard (*) origin in production      ║');
-      console.error('╟───────────────────────────────────────────────────────────────────╢');
-      console.error('║ Using wildcard (*) in ALLOWED_ORIGINS is not permitted in        ║');
-      console.error('║ production environments due to security risks.                   ║');
-      console.error('║                                                                   ║');
-      console.error('║ Please specify explicit allowed origins instead.                 ║');
-      console.error('║                                                                   ║');
-      console.error('║ Example:                                                          ║');
-      console.error('║   export ALLOWED_ORIGINS=https://example.com,https://app.com     ║');
-      console.error('╚═══════════════════════════════════════════════════════════════════╝');
-      process.exit(1);
-    }
-
-    logger.info('ALLOWED_ORIGINS validated successfully', { origins });
-  }
 
   try {
     await configService.validateAndLoadConfig();
