@@ -756,7 +756,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Send Slack notification
             try {
-              await sendOptimizationComplete(recommendation.title, recommendation.projectedMonthlySavings);
+              await sendOptimizationComplete({
+                title: recommendation.title,
+                actualSavings: recommendation.projectedMonthlySavings,
+                resourceId: recommendation.resourceId,
+                status: 'success'
+              });
             } catch (slackError) {
               // Don't fail the approval if Slack fails
             }

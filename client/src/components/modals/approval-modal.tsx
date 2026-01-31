@@ -42,8 +42,10 @@ export function ApprovalModal() {
     mutationFn: async ({ status, comments }: { status: string; comments?: string }) => {
       if (!selectedRecommendationId) throw new Error("No recommendation selected");
       
+      console.log('[ApprovalModal] Starting approval for:', selectedRecommendationId, 'status:', status);
+      
       // Create approval request in local system (always)
-      await apiRequest('POST', '/api/approval-requests', {
+      const response = await apiRequest('POST', '/api/approval-requests', {
         recommendationId: selectedRecommendationId,
         requestedBy: 'current-user',
         approverRole: 'Head of Cloud Platform',
@@ -52,6 +54,8 @@ export function ApprovalModal() {
         approvedBy: status === 'approved' ? 'current-user' : undefined,
         approvalDate: status === 'approved' ? new Date() : undefined
       });
+      
+      console.log('[ApprovalModal] API response status:', response.status);
 
       // If approved and recommendation exists, send intent to platform
       if (status === 'approved' && recommendation) {
