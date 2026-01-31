@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthGuard } from "@/components/AuthGuard";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/dashboard";
-import ExecutiveDashboard from "@/pages/executive-dashboard";
 import CostAnalysis from "@/pages/cost-analysis";
 import Recommendations from "@/pages/recommendations";
 import Automation from "@/pages/automation";
@@ -26,12 +25,9 @@ function Router() {
           </AuthGuard>
         )}
       </Route>
+      {/* Redirect legacy /executive route to main dashboard */}
       <Route path="/executive">
-        {() => (
-          <AuthGuard>
-            <ExecutiveDashboard />
-          </AuthGuard>
-        )}
+        {() => <Redirect to="/" />}
       </Route>
       <Route path="/cost-analysis">
         {() => (

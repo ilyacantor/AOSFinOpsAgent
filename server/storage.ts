@@ -631,6 +631,8 @@ export class DatabaseStorage implements IStorage {
     wastePercentOptimizedYTD: number;
     monthlySpendChange: number;
     ytdSpendChange: number;
+    pendingApprovalCount: number;
+    lastActionTimestamp: string | null;
   }> {
     const now = new Date();
     
@@ -798,18 +800,42 @@ export class DatabaseStorage implements IStorage {
     const hitlSavingsAwaiting = Number(hitlSavingsResult.total);
     const realizedSavingsYTD = Number(realizedSavingsResult.total);
 
+    // Get count of pending HITL recommendations (actual queue depth)
+    const [pendingCountResult] = await db
+      .select({
+        count: sql<number>`COUNT(*)`
+      })
+      .from(recommendations)
+      .where(
+        and(
+          eq(recommendations.tenantId, tenantId),
+          eq(recommendations.status, 'pending'),
+          eq(recommendations.executionMode, 'hitl')
+        )
+      );
+    const pendingApprovalCount = Number(pendingCountResult.count);
+
+    // Get last action timestamp (most recent optimization execution)
+    const [lastActionResult] = await db
+      .select({
+        lastAction: sql<string>`MAX(${optimizationHistory.executionDate})`
+      })
+      .from(optimizationHistory)
+      .where(eq(optimizationHistory.tenantId, tenantId));
+    const lastActionTimestamp = lastActionResult.lastAction || null;
+
     // Calculate percent changes
-    const monthlySpendChange = lastMonthSpend > 0 
-      ? ((monthlySpend - lastMonthSpend) / lastMonthSpend) * 100 
+    const monthlySpendChange = lastMonthSpend > 0
+      ? ((monthlySpend - lastMonthSpend) / lastMonthSpend) * 100
       : 0;
-    
-    const ytdSpendChange = priorYtdSpend > 0 
-      ? ((ytdSpend - priorYtdSpend) / priorYtdSpend) * 100 
+
+    const ytdSpendChange = priorYtdSpend > 0
+      ? ((ytdSpend - priorYtdSpend) / priorYtdSpend) * 100
       : 0;
 
     // Calculate waste percent optimized YTD
-    const wastePercentOptimizedYTD = ytdSpend > 0 
-      ? (realizedSavingsYTD / ytdSpend) * 100 
+    const wastePercentOptimizedYTD = ytdSpend > 0
+      ? (realizedSavingsYTD / ytdSpend) * 100
       : 0;
 
     return {
@@ -820,7 +846,9 @@ export class DatabaseStorage implements IStorage {
       realizedSavingsYTD,
       wastePercentOptimizedYTD: Math.round(wastePercentOptimizedYTD * 10) / 10,
       monthlySpendChange: Math.round(monthlySpendChange * 10) / 10,
-      ytdSpendChange: Math.round(ytdSpendChange * 10) / 10
+      ytdSpendChange: Math.round(ytdSpendChange * 10) / 10,
+      pendingApprovalCount,
+      lastActionTimestamp
     };
   }
 

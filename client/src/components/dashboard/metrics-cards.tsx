@@ -6,11 +6,13 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 interface MetricsSummary {
   monthlySpend: number;
   ytdSpend: number;
-  identifiedSavingsAwaitingApproval: number;
+  hitlSavingsAwaiting: number;
+  autonomousSavingsPending: number;
   realizedSavingsYTD: number;
   wastePercentOptimizedYTD: number;
   monthlySpendChange: number;
   ytdSpendChange: number;
+  pendingApprovalCount: number;
 }
 
 export function MetricsCards() {
@@ -85,15 +87,15 @@ export function MetricsCards() {
         </CardContent>
       </Card>
 
-      <Card className="hover:shadow-lg transition-all duration-200 hover:-translate-y-1" data-testid="card-identified-savings">
+      <Card className="hover:shadow-lg transition-all duration-200 hover:-translate-y-1" data-testid="card-pending-savings">
         <CardContent className="p-6">
           <div className="flex flex-col justify-center">
-            <p className="text-sm font-medium text-muted-foreground">Identified Savings</p>
-            <p className="text-3xl font-bold text-accent mt-2" data-testid="identified-savings-amount">
-              {formatCurrencyCompact(metrics.identifiedSavingsAwaitingApproval)}
+            <p className="text-sm font-medium text-muted-foreground">Pending Approval</p>
+            <p className="text-3xl font-bold text-accent mt-2" data-testid="pending-savings-amount">
+              {formatCurrencyCompact(metrics.hitlSavingsAwaiting)}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              Awaiting Approval
+              {metrics.pendingApprovalCount} recommendations
             </p>
           </div>
         </CardContent>

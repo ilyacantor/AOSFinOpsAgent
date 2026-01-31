@@ -1,6 +1,9 @@
-import { Activity, Bot, ChartLine, Cog, Shield, Lightbulb, BarChart3, Presentation, HelpCircle, X } from "lucide-react";
+import { Activity, Bot, ChartLine, Cog, Shield, Lightbulb, BarChart3, HelpCircle, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import type { Recommendation } from "@shared/schema";
 
 interface SidebarProps {
   isMobileOpen?: boolean;
@@ -9,9 +12,17 @@ interface SidebarProps {
 
 export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
   const [location] = useLocation();
-  
+
   const isActive = (path: string) => location === path;
-  
+
+  // Get pending recommendations count for badge
+  const { data: recommendations = [] } = useQuery<Recommendation[]>({
+    queryKey: ['/api/recommendations'],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const pendingCount = recommendations.filter(r => r.status === 'pending').length;
+
   // Get user role from localStorage
   const getUserRole = () => {
     try {
@@ -21,7 +32,7 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
       return null;
     }
   };
-  
+
   const isAdmin = getUserRole() === 'admin';
   
   const handleLinkClick = () => {
@@ -67,30 +78,6 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
         </div>
         
         <nav className="px-4 pt-0 lg:pt-4 pb-4">
-        {/* Executive Section */}
-        <div className="mb-6">
-          <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Executive
-          </h3>
-          <ul className="space-y-2">
-            <li>
-              <Link 
-                href="/executive"
-                onClick={handleLinkClick}
-                className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive('/executive') 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-                data-testid="nav-executive"
-              >
-                <Presentation className="w-5 h-5 mr-3" />
-                Executive Dashboard
-              </Link>
-            </li>
-          </ul>
-        </div>
-
         {/* Operations Section */}
         <div className="mb-6">
           <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -128,42 +115,51 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
               </Link>
             </li>
             <li>
-              <Link 
+              <Link
                 href="/recommendations"
                 onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive('/recommendations') 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
+                  isActive('/recommendations')
+                    ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
                 data-testid="nav-recommendations"
               >
                 <Lightbulb className="w-5 h-5 mr-3" />
-                Recommendations
+                <span className="flex-1">Recommendations</span>
+                {pendingCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="ml-2 h-5 min-w-5 flex items-center justify-center text-xs px-1.5"
+                    data-testid="pending-count-badge"
+                  >
+                    {pendingCount}
+                  </Badge>
+                )}
               </Link>
             </li>
           </ul>
         </div>
 
-        {/* Automation & Governance Section */}
+        {/* Automation Section */}
         <div className="mb-6">
           <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Automation & Governance
+            Automation
           </h3>
           <ul className="space-y-2">
             <li>
-              <Link 
+              <Link
                 href="/automation"
                 onClick={handleLinkClick}
                 className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive('/automation') 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
+                  isActive('/automation')
+                    ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
                 data-testid="nav-automation"
               >
                 <Cog className="w-5 h-5 mr-3" />
-                Automation
+                Rules
               </Link>
             </li>
             <li>

@@ -7,11 +7,14 @@ import type { AwsResource, Recommendation, OptimizationHistory } from "@shared/s
 interface MetricsSummary {
   monthlySpend: number;
   ytdSpend: number;
-  identifiedSavingsAwaitingApproval: number;
+  hitlSavingsAwaiting: number;
+  autonomousSavingsPending: number;
   realizedSavingsYTD: number;
   wastePercentOptimizedYTD: number;
   monthlySpendChange: number;
   ytdSpendChange: number;
+  pendingApprovalCount: number;
+  lastActionTimestamp: string | null;
 }
 
 export function DataFlowVisualization() {
@@ -42,7 +45,7 @@ export function DataFlowVisualization() {
   return (
     <Card className="p-6 bg-card border-border">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-foreground" data-testid="text-dataflow-title">Data Flow Pipeline</h3>
+        <h3 className="text-lg font-semibold text-foreground" data-testid="text-dataflow-title">System Status</h3>
         <p className="text-sm text-muted-foreground" data-testid="text-dataflow-description">
           AWS Resource Analysis → AI Processing → Cost Optimization
         </p>
@@ -154,8 +157,8 @@ export function DataFlowVisualization() {
               <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 border border-border hover:border-accent/50 transition-all">
                 <DollarSign className="w-5 h-5 text-chart-3" />
                 <div className="flex-1">
-                  <div className="text-sm font-medium text-foreground">Identified Savings</div>
-                  <div className="text-xs text-chart-3">{formatCurrencyCompact(metrics?.identifiedSavingsAwaitingApproval || 0)}/month</div>
+                  <div className="text-sm font-medium text-foreground">Pending Savings</div>
+                  <div className="text-xs text-chart-3">{formatCurrencyCompact(metrics?.hitlSavingsAwaiting || 0)}/month</div>
                 </div>
               </div>
             </div>
@@ -247,13 +250,13 @@ export function DataFlowVisualization() {
             )}
           </div>
           
-          <div data-testid="metric-identified-savings" className="text-center">
-            <div className="text-sm font-medium text-muted-foreground mb-1">Identified Savings Awaiting Approval</div>
-            <div className="text-2xl font-bold text-accent" data-testid="identified-savings-value">
-              {formatCurrencyCompact(metrics?.identifiedSavingsAwaitingApproval || 0)}
+          <div data-testid="metric-pending-savings" className="text-center">
+            <div className="text-sm font-medium text-muted-foreground mb-1">Pending Approval</div>
+            <div className="text-2xl font-bold text-accent" data-testid="pending-savings-value">
+              {formatCurrencyCompact(metrics?.hitlSavingsAwaiting || 0)}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {activeRecommendations} recommendations
+              {metrics?.pendingApprovalCount || 0} recommendations
             </div>
           </div>
         </div>

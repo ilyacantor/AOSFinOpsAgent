@@ -2,12 +2,12 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/top-nav";
 import { useAgentConfig } from "@/hooks/use-agent-config";
 import { AiModeIndicator } from "@/components/ai-mode-indicator";
+import { ActionRequired } from "@/components/dashboard/action-required";
 import { RecommendationsPanel } from "@/components/dashboard/recommendations-panel";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { ResourceMonitor } from "@/components/dashboard/resource-monitor";
 import { ApprovalModal } from "@/components/modals/approval-modal";
 import { DataFlowVisualization } from "@/components/data-flow-viz";
-import { OptimizationMix } from "@/components/dashboard/optimization-mix";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -60,20 +60,21 @@ export default function Dashboard() {
         <main className="flex-1 overflow-hidden w-full">
         
         <div className="p-4 sm:p-6 h-full overflow-y-auto">
-          {/* Data Flow Visualization with integrated metrics */}
-          <DataFlowVisualization />
-          
-          {/* Optimization Mix */}
-          <div className="mt-8">
-            <OptimizationMix />
-          </div>
-          
-          {/* Recommendations Section - Responsive Layout */}
-          <div className="mt-8">
+          {/* Hero: Action Required Section */}
+          <ActionRequired />
+
+          {/* Approval Queue - Inline on Dashboard */}
+          <div className="mt-6">
             <RecommendationsPanel />
           </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8 mt-8">
+
+          {/* System Status - Data Flow Visualization */}
+          <div className="mt-6">
+            <DataFlowVisualization />
+          </div>
+
+          {/* Activity and Resources */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8 mt-6">
             <ActivityFeed />
             <ResourceMonitor />
           </div>
