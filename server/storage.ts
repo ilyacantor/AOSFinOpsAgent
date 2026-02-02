@@ -556,10 +556,10 @@ export class DatabaseStorage implements IStorage {
     resourcesAnalyzed: number;
     wastePercentage: number;
   }> {
-    // Get current month cost
-    const currentMonth = new Date();
-    currentMonth.setDate(1);
-    currentMonth.setHours(0, 0, 0, 0);
+    // Get current month cost (with proper date bounds)
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     
     const [monthlySpendResult] = await db
       .select({
@@ -569,7 +569,8 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(costReports.tenantId, tenantId),
-          gte(costReports.reportDate, currentMonth)
+          gte(costReports.reportDate, currentMonthStart),
+          sql`${costReports.reportDate} < ${nextMonthStart}`
         )
       );
 
@@ -640,15 +641,17 @@ export class DatabaseStorage implements IStorage {
   }> {
     const now = new Date();
     
-    // Current month start
+    // Current month start and end
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1); // First day of next month
     
     // Last month start and end
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
     
-    // Year-to-date start
+    // Year-to-date start and end
     const ytdStart = new Date(now.getFullYear(), 0, 1);
+    const ytdEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1); // Up to end of current month
     
     // Prior year YTD start and end
     const priorYtdStart = new Date(now.getFullYear() - 1, 0, 1);
@@ -670,7 +673,7 @@ export class DatabaseStorage implements IStorage {
     let priorYtdSpend = 0;
 
     if (hasCostReports) {
-      // Use cost reports data
+      // Use cost reports data - current month only (with upper bound)
       const [currentMonthResult] = await db
         .select({
           total: sql<number>`COALESCE(SUM(${costReports.cost}), 0)::numeric`
@@ -679,7 +682,8 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(costReports.tenantId, tenantId),
-            gte(costReports.reportDate, currentMonthStart)
+            gte(costReports.reportDate, currentMonthStart),
+            sql`${costReports.reportDate} < ${currentMonthEnd}`
           )
         );
 
@@ -704,7 +708,8 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(costReports.tenantId, tenantId),
-            gte(costReports.reportDate, ytdStart)
+            gte(costReports.reportDate, ytdStart),
+            sql`${costReports.reportDate} < ${ytdEnd}`
           )
         );
 
