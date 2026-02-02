@@ -616,18 +616,21 @@ export class DatabaseStorage implements IStorage {
       );
 
     // Get total realized savings from executed recommendations
-    // Note: recommendations go from 'pending' directly to 'executed', not through 'approved'
+    // Use DISTINCT ON to count only the most recent optimization per resource
+    // This prevents double-counting when a resource is optimized multiple times
     const [realizedSavingsResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
+        total: sql<number>`COALESCE(
+          (SELECT SUM(projected_monthly_savings) FROM (
+            SELECT DISTINCT ON (resource_id) projected_monthly_savings
+            FROM ${recommendations}
+            WHERE tenant_id = ${tenantId} AND status = 'executed'
+            ORDER BY resource_id, created_at DESC
+          ) AS latest_recs),
+          0
+        )::numeric`
       })
-      .from(recommendations)
-      .where(
-        and(
-          eq(recommendations.tenantId, tenantId),
-          eq(recommendations.status, 'executed')
-        )
-      );
+      .from(sql`(SELECT 1) AS dummy`);
 
     // Get total resources analyzed
     const [resourcesResult] = await db
