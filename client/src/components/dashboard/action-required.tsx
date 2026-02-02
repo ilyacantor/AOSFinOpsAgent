@@ -267,6 +267,19 @@ export function ActionRequired() {
               <Activity className="w-3 h-3" />
               <span>Last action: {formatLastAction(metrics?.lastActionTimestamp || null)}</span>
             </div>
+
+            {/* Reset Session Button - Always visible */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full gap-2 mt-2"
+              onClick={() => setShowResetDialog(true)}
+              disabled={resetSession.isPending}
+              data-testid="reset-session-button"
+            >
+              <RotateCcw className="w-4 h-4" />
+              {resetSession.isPending ? "Resetting..." : "Reset Session"}
+            </Button>
           </div>
         </CardContent>
       </Card>

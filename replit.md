@@ -24,6 +24,7 @@ The user interface features a consolidated dashboard with an "Action Required" h
 - **Intelligent Recommendations:** Generates actionable suggestions for rightsizing, scheduling, and storage tiering, prioritized by potential savings.
 - **Dual Execution Mode:** Supports both autonomous execution for low-risk changes and Human-in-the-Loop (HITL) for high-risk changes, requiring manual approval.
 - **Approval Workflows:** Manages review, approval, and execution stages for HITL recommendations, including approval history and Slack notifications.
+- **Session-Based Optimization Cycles:** Tracks unique optimizations per session to prevent unrealistic continuous improvement. Sessions auto-create on first optimization, track resources optimized and savings realized. Reset button allows starting fresh cycles without affecting baseline AWS spend. Exhaustion detection shows when all optimizations in a session are complete.
 - **AI-Powered Analysis (Optional):** Utilizes Gemini 2.0 Flash and RAG (Retrieval-Augmented Generation) with Pinecone to identify advanced optimization opportunities and provide calculation transparency.
 - **Simulation Mode:** Allows full platform functionality with synthetic data for demos, development, and testing without AWS credentials.
 - **Real-Time Updates:** Employs WebSocket for instant dashboard updates and notification broadcasting.
