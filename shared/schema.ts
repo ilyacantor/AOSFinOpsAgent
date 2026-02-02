@@ -128,6 +128,7 @@ export const recommendations = pgTable("recommendations", {
 export const optimizationHistory = pgTable("optimization_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull(),
+  sessionId: varchar("session_id"), // Links to optimization session (null for legacy data)
   recommendationId: varchar("recommendation_id").notNull(),
   executedBy: varchar("executed_by").notNull(),
   executionDate: timestamp("execution_date").notNull(),
@@ -140,6 +141,7 @@ export const optimizationHistory = pgTable("optimization_history", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   tenantIdCreatedAtIdx: index("idx_optimization_history_tenant_id_created_at").on(table.tenantId, table.createdAt),
+  sessionIdIdx: index("idx_optimization_history_session_id").on(table.sessionId),
 }));
 
 export const approvalRequests = pgTable("approval_requests", {
@@ -218,6 +220,20 @@ export const auditLogs = pgTable("audit_logs", {
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Optimization sessions - tracks discrete optimization cycles to prevent unrealistic continuous improvement
+export const optimizationSessions = pgTable("optimization_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  endedAt: timestamp("ended_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  resourcesOptimized: integer("resources_optimized").notNull().default(0),
+  totalSavingsRealized: bigint("total_savings_realized", { mode: "number" }).notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  tenantIdActiveIdx: index("idx_optimization_sessions_tenant_id_active").on(table.tenantId, table.isActive),
+}));
 
 // Relations
 export const tenantsRelations = relations(tenants, ({ many }) => ({
@@ -335,6 +351,7 @@ export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({ 
 export const insertHistoricalCostSnapshotSchema = createInsertSchema(historicalCostSnapshots).omit({ id: true, createdAt: true });
 export const insertAiModeHistorySchema = createInsertSchema(aiModeHistory).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true, timestamp: true });
+export const insertOptimizationSessionSchema = createInsertSchema(optimizationSessions).omit({ id: true, createdAt: true });
 
 // Types
 export type Tenant = typeof tenants.$inferSelect;
@@ -359,3 +376,5 @@ export type AiModeHistory = typeof aiModeHistory.$inferSelect;
 export type InsertAiModeHistory = z.infer<typeof insertAiModeHistorySchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type OptimizationSession = typeof optimizationSessions.$inferSelect;
+export type InsertOptimizationSession = z.infer<typeof insertOptimizationSessionSchema>;
