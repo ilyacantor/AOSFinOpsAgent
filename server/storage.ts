@@ -314,10 +314,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOptimizationHistory(history: InsertOptimizationHistory, tenantId: string): Promise<OptimizationHistory> {
+    // Get or create session for tracking
+    let currentSession = await this.getCurrentSession(tenantId);
+    if (!currentSession) {
+      currentSession = await this.createSession(tenantId);
+    }
+    
+    // Include sessionId in the optimization history record
     const [created] = await db
       .insert(optimizationHistory)
-      .values({ ...history, tenantId })
+      .values({ ...history, tenantId, sessionId: currentSession.id })
       .returning();
+    
+    // Update session tracking for successful optimizations
+    if (history.status === 'success' && history.actualSavings) {
+      await this.recordSessionOptimization(tenantId, currentSession.id, history.actualSavings);
+    }
     
     // Store in Pinecone for RAG (async, non-blocking) with circuit breaker protection
     pineconeCircuitBreaker.executeWithFallback(
@@ -1032,7 +1044,11 @@ export class DatabaseStorage implements IStorage {
     sessionRealizedSavings: number;
     potentialSavings: number;
   }> {
-    const session = await this.getCurrentSession(tenantId);
+    // Get or create session for consistent tracking
+    let session = await this.getCurrentSession(tenantId);
+    if (!session) {
+      session = await this.createSession(tenantId);
+    }
     
     // Get count of pending recommendations (remaining optimizations)
     const [pendingResult] = await db
@@ -1048,7 +1064,7 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
-    // Get count of executed recommendations in current session
+    // Get count of executed recommendations (total optimizations available)
     const [executedResult] = await db
       .select({
         count: sql<number>`COUNT(*)`,
@@ -1063,16 +1079,17 @@ export class DatabaseStorage implements IStorage {
       );
 
     const remainingOptimizations = Number(pendingResult.count);
-    const resourcesOptimizedInSession = session?.resourcesOptimized || 0;
-    const totalOptimizableResources = remainingOptimizations + Number(executedResult.count);
+    const executedCount = Number(executedResult.count);
+    const resourcesOptimizedInSession = session.resourcesOptimized || 0;
+    const totalOptimizableResources = remainingOptimizations + executedCount;
     const potentialSavings = Number(pendingResult.savings);
-    const sessionRealizedSavings = session?.totalSavingsRealized || 0;
+    const sessionRealizedSavings = session.totalSavingsRealized || 0;
     
-    // Session is exhausted when no pending recommendations remain
+    // Session is exhausted when no pending recommendations remain and optimizations exist
     const isExhausted = remainingOptimizations === 0 && totalOptimizableResources > 0;
 
     return {
-      session: session || null,
+      session,
       resourcesOptimizedInSession,
       totalOptimizableResources,
       remainingOptimizations,
