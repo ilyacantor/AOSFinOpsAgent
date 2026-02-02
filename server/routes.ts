@@ -458,6 +458,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Session Management - tracks optimization cycles
+  app.get("/api/session/status", ...authenticated, async (req, res) => {
+    try {
+      const tenantId = (req as any).user?.tenantId || 'default-tenant';
+      const status = await storage.getSessionStatus(tenantId);
+      res.json(status);
+    } catch (error) {
+      console.error("Error fetching session status:", error);
+      res.status(500).json({ error: "Failed to fetch session status" });
+    }
+  });
+
+  app.post("/api/session/reset", ...authenticatedAdmin, auditMiddleware(auditActions.EXECUTE, auditResourceTypes.SYSTEM_CONFIG, () => 'session-reset'), async (req, res) => {
+    try {
+      const tenantId = (req as any).user?.tenantId || 'default-tenant';
+      const newSession = await storage.resetSession(tenantId);
+      const status = await storage.getSessionStatus(tenantId);
+      res.json({ 
+        message: "Session reset successfully. All optimizations have been restored to pending state.",
+        session: newSession,
+        status
+      });
+    } catch (error) {
+      console.error("Error resetting session:", error);
+      res.status(500).json({ error: "Failed to reset session" });
+    }
+  });
+
+  app.post("/api/session/create", ...authenticated, async (req, res) => {
+    try {
+      const tenantId = (req as any).user?.tenantId || 'default-tenant';
+      let session = await storage.getCurrentSession(tenantId);
+      if (!session) {
+        session = await storage.createSession(tenantId);
+      }
+      res.json(session);
+    } catch (error) {
+      console.error("Error creating session:", error);
+      res.status(500).json({ error: "Failed to create session" });
+    }
+  });
+
   // Prod Mode toggle with auto-revert
   app.post("/api/mode/prod", ...authenticatedAdmin, async (req, res) => {
     try {

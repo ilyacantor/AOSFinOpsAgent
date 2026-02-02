@@ -1,9 +1,10 @@
 import { 
-  users, awsResources, costReports, recommendations, optimizationHistory, approvalRequests, systemConfig, aiModeHistory,
+  users, awsResources, costReports, recommendations, optimizationHistory, approvalRequests, systemConfig, aiModeHistory, optimizationSessions,
   type User, type InsertUser, type AwsResource, type InsertAwsResource,
   type CostReport, type InsertCostReport, type Recommendation, type InsertRecommendation,
   type OptimizationHistory, type InsertOptimizationHistory, type ApprovalRequest, type InsertApprovalRequest,
-  type SystemConfig, type InsertSystemConfig, type AiModeHistory, type InsertAiModeHistory
+  type SystemConfig, type InsertSystemConfig, type AiModeHistory, type InsertAiModeHistory,
+  type OptimizationSession, type InsertOptimizationSession
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
@@ -118,6 +119,21 @@ export interface IStorage {
     hitlPercentage: number;
     totalRecommendations: number;
   }>;
+
+  // Session Management - tracks optimization cycles to prevent unrealistic continuous improvement
+  getCurrentSession(tenantId: string): Promise<OptimizationSession | undefined>;
+  createSession(tenantId: string): Promise<OptimizationSession>;
+  resetSession(tenantId: string): Promise<OptimizationSession>;
+  getSessionStatus(tenantId: string): Promise<{
+    session: OptimizationSession | null;
+    resourcesOptimizedInSession: number;
+    totalOptimizableResources: number;
+    remainingOptimizations: number;
+    isExhausted: boolean;
+    sessionRealizedSavings: number;
+    potentialSavings: number;
+  }>;
+  recordSessionOptimization(tenantId: string, sessionId: string, savings: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -938,6 +954,143 @@ export class DatabaseStorage implements IStorage {
       hitlPercentage: Math.round(hitlPercentage),
       totalRecommendations
     };
+  }
+
+  // Session Management Methods
+
+  async getCurrentSession(tenantId: string): Promise<OptimizationSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(optimizationSessions)
+      .where(
+        and(
+          eq(optimizationSessions.tenantId, tenantId),
+          eq(optimizationSessions.isActive, true)
+        )
+      )
+      .limit(1);
+    return session || undefined;
+  }
+
+  async createSession(tenantId: string): Promise<OptimizationSession> {
+    // First deactivate any existing active sessions
+    await db
+      .update(optimizationSessions)
+      .set({ isActive: false, endedAt: new Date() })
+      .where(
+        and(
+          eq(optimizationSessions.tenantId, tenantId),
+          eq(optimizationSessions.isActive, true)
+        )
+      );
+
+    // Create new session
+    const [session] = await db
+      .insert(optimizationSessions)
+      .values({
+        tenantId,
+        isActive: true,
+        resourcesOptimized: 0,
+        totalSavingsRealized: 0
+      })
+      .returning();
+    
+    return session;
+  }
+
+  async resetSession(tenantId: string): Promise<OptimizationSession> {
+    // End current session if exists
+    const currentSession = await this.getCurrentSession(tenantId);
+    if (currentSession) {
+      await db
+        .update(optimizationSessions)
+        .set({ isActive: false, endedAt: new Date() })
+        .where(eq(optimizationSessions.id, currentSession.id));
+    }
+
+    // Reset all executed recommendations back to pending for new session cycle
+    await db
+      .update(recommendations)
+      .set({ status: 'pending', updatedAt: new Date() })
+      .where(
+        and(
+          eq(recommendations.tenantId, tenantId),
+          eq(recommendations.status, 'executed')
+        )
+      );
+
+    // Create fresh session
+    return this.createSession(tenantId);
+  }
+
+  async getSessionStatus(tenantId: string): Promise<{
+    session: OptimizationSession | null;
+    resourcesOptimizedInSession: number;
+    totalOptimizableResources: number;
+    remainingOptimizations: number;
+    isExhausted: boolean;
+    sessionRealizedSavings: number;
+    potentialSavings: number;
+  }> {
+    const session = await this.getCurrentSession(tenantId);
+    
+    // Get count of pending recommendations (remaining optimizations)
+    const [pendingResult] = await db
+      .select({
+        count: sql<number>`COUNT(*)`,
+        savings: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)`
+      })
+      .from(recommendations)
+      .where(
+        and(
+          eq(recommendations.tenantId, tenantId),
+          eq(recommendations.status, 'pending')
+        )
+      );
+
+    // Get count of executed recommendations in current session
+    const [executedResult] = await db
+      .select({
+        count: sql<number>`COUNT(*)`,
+        savings: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)`
+      })
+      .from(recommendations)
+      .where(
+        and(
+          eq(recommendations.tenantId, tenantId),
+          eq(recommendations.status, 'executed')
+        )
+      );
+
+    const remainingOptimizations = Number(pendingResult.count);
+    const resourcesOptimizedInSession = session?.resourcesOptimized || 0;
+    const totalOptimizableResources = remainingOptimizations + Number(executedResult.count);
+    const potentialSavings = Number(pendingResult.savings);
+    const sessionRealizedSavings = session?.totalSavingsRealized || 0;
+    
+    // Session is exhausted when no pending recommendations remain
+    const isExhausted = remainingOptimizations === 0 && totalOptimizableResources > 0;
+
+    return {
+      session: session || null,
+      resourcesOptimizedInSession,
+      totalOptimizableResources,
+      remainingOptimizations,
+      isExhausted,
+      sessionRealizedSavings,
+      potentialSavings
+    };
+  }
+
+  async recordSessionOptimization(tenantId: string, sessionId: string, savings: number): Promise<void> {
+    // Update session with new optimization
+    await db
+      .update(optimizationSessions)
+      .set({
+        resourcesOptimized: sql`${optimizationSessions.resourcesOptimized} + 1`,
+        totalSavingsRealized: sql`${optimizationSessions.totalSavingsRealized} + ${savings}`
+      })
+      .where(eq(optimizationSessions.id, sessionId));
   }
 }
 
