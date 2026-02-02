@@ -633,6 +633,10 @@ export class DatabaseStorage implements IStorage {
     ytdSpendChange: number;
     pendingApprovalCount: number;
     lastActionTimestamp: string | null;
+    projectedAnnualSpend: number;
+    totalIdentifiedSavings: number;
+    priorYearSpend: number;
+    forecastVariance: number;
   }> {
     const now = new Date();
     
@@ -838,6 +842,26 @@ export class DatabaseStorage implements IStorage {
       ? (realizedSavingsYTD / ytdSpend) * 100
       : 0;
 
+    // Calculate projected annual spend based on potential savings
+    // Total identified savings = autonomous pending + HITL awaiting approval
+    const totalIdentifiedSavings = autonomousSavingsPending + hitlSavingsAwaiting;
+    
+    // Projected annual spend = (current monthly × 12) - (identified annual savings)
+    // This represents what we COULD spend if all optimizations are implemented
+    const projectedAnnualSpend = Math.max(0, (monthlySpend * 12) - (totalIdentifiedSavings * 12));
+    
+    // Prior year spend (annualized from prior YTD data)
+    // If we have prior YTD, extrapolate to full year
+    const monthsElapsed = now.getMonth() + 1;
+    const priorYearSpend = priorYtdSpend > 0 
+      ? (priorYtdSpend / monthsElapsed) * 12
+      : monthlySpend * 12 * 1.1; // Estimate prior year as 10% higher if no data
+    
+    // Forecast variance = ((projected - prior) / prior) × 100
+    const forecastVariance = priorYearSpend > 0
+      ? ((projectedAnnualSpend - priorYearSpend) / priorYearSpend) * 100
+      : 0;
+
     return {
       monthlySpend,
       ytdSpend,
@@ -848,7 +872,11 @@ export class DatabaseStorage implements IStorage {
       monthlySpendChange: Math.round(monthlySpendChange * 10) / 10,
       ytdSpendChange: Math.round(ytdSpendChange * 10) / 10,
       pendingApprovalCount,
-      lastActionTimestamp
+      lastActionTimestamp,
+      projectedAnnualSpend: Math.round(projectedAnnualSpend),
+      totalIdentifiedSavings: Math.round(totalIdentifiedSavings * 12),
+      priorYearSpend: Math.round(priorYearSpend),
+      forecastVariance: Math.round(forecastVariance * 10) / 10
     };
   }
 
