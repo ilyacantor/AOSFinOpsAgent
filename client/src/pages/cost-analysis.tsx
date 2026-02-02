@@ -17,23 +17,6 @@ interface DashboardMetrics {
   wastePercentage: number;
 }
 
-interface MetricsSummary {
-  monthlySpend: number;
-  ytdSpend: number;
-  autonomousSavingsPending: number;
-  hitlSavingsAwaiting: number;
-  realizedSavingsYTD: number;
-  wastePercentOptimizedYTD: number;
-  monthlySpendChange: number;
-  ytdSpendChange: number;
-  pendingApprovalCount: number;
-  lastActionTimestamp: string | null;
-  projectedAnnualSpend: number;
-  totalIdentifiedSavings: number;
-  priorYearSpend: number;
-  forecastVariance: number;
-}
-
 interface CostTrend {
   month: string;
   totalCost: number;
@@ -45,12 +28,6 @@ export default function CostAnalysis() {
   const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery<DashboardMetrics>({
     queryKey: ['/api/dashboard/metrics'],
     refetchInterval: 60000,
-    retry: false,
-  });
-
-  const { data: metricsSummary, isLoading: summaryLoading } = useQuery<MetricsSummary>({
-    queryKey: ['/api/metrics/summary'],
-    refetchInterval: 30000,
     retry: false,
   });
 
@@ -71,6 +48,11 @@ export default function CostAnalysis() {
     ? ((trends[trends.length - 1].totalCost - trends[trends.length - 2].totalCost) / trends[trends.length - 2].totalCost) * 100
     : 0;
 
+  // Calculate forecast based on trend
+  const forecast = trends && trends.length >= 3
+    ? trends[trends.length - 1].totalCost * 1.025 // Simple 2.5% growth projection
+    : metrics?.monthlySpend ? metrics.monthlySpend * 1.025 : 0;
+
   // Calculate service breakdown from resources
   const serviceBreakdown = resources?.reduce((acc, resource) => {
     const service = resource.resourceType;
@@ -83,7 +65,7 @@ export default function CostAnalysis() {
     .sort(([,a], [,b]) => b - a)
     .slice(0, 5); // Top 5 services
 
-  const isLoading = metricsLoading || trendsLoading || resourcesLoading || summaryLoading;
+  const isLoading = metricsLoading || trendsLoading || resourcesLoading;
   const error = metricsError || trendsError || resourcesError;
 
   if (error) {
@@ -209,24 +191,14 @@ export default function CostAnalysis() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Projected Annual Spend</CardTitle>
+                  <CardTitle className="text-sm font-medium">Forecast</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold" data-testid="forecast">
-                    {formatCurrencyK(metricsSummary?.projectedAnnualSpend || 0)}
+                    {formatCurrencyK(forecast)}
                   </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    {(metricsSummary?.forecastVariance || 0) < 0 ? (
-                      <TrendingDown className="w-3 h-3 text-green-500" />
-                    ) : (
-                      <TrendingUp className="w-3 h-3 text-red-500" />
-                    )}
-                    <span className={`text-xs ${(metricsSummary?.forecastVariance || 0) < 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {Math.abs(metricsSummary?.forecastVariance || 0).toFixed(1)}% vs prior year
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    With {formatCurrencyK(metricsSummary?.totalIdentifiedSavings || 0)} potential savings
+                  <p className="text-xs text-muted-foreground">
+                    Projected monthly
                   </p>
                 </CardContent>
               </Card>
