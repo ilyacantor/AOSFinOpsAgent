@@ -1,11 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Clock, CheckCircle2, ArrowRight, Activity } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle2, ArrowRight, Activity, RotateCcw, AlertTriangle } from "lucide-react";
 import { formatCurrencyCompact, formatCurrencyK } from "@/lib/currency";
 import { Link } from "wouter";
 import type { Recommendation } from "@shared/schema";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface MetricsSummary {
   monthlySpend: number;
@@ -20,7 +30,19 @@ interface MetricsSummary {
   lastActionTimestamp: string | null;
 }
 
+interface SessionStatus {
+  session: { id: string; startedAt: string; resourcesOptimized: number; totalSavingsRealized: number } | null;
+  resourcesOptimizedInSession: number;
+  totalOptimizableResources: number;
+  remainingOptimizations: number;
+  isExhausted: boolean;
+  sessionRealizedSavings: number;
+  potentialSavings: number;
+}
+
 export function ActionRequired() {
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  
   const { data: recommendations = [] } = useQuery<Recommendation[]>({
     queryKey: ['/api/recommendations'],
     refetchInterval: 30000,
@@ -29,6 +51,25 @@ export function ActionRequired() {
   const { data: metrics } = useQuery<MetricsSummary>({
     queryKey: ['/api/metrics/summary'],
     refetchInterval: 3000,
+  });
+
+  const { data: sessionStatus } = useQuery<SessionStatus>({
+    queryKey: ['/api/session/status'],
+    refetchInterval: 3000,
+  });
+
+  const resetSession = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/session/reset');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/session/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/recommendations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/metrics/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/optimization-history'] });
+      setShowResetDialog(false);
+    },
   });
 
   // Get pending HITL recommendations that need approval
@@ -41,6 +82,9 @@ export function ActionRequired() {
     (sum, r) => sum + r.projectedMonthlySavings,
     0
   );
+
+  // Check if optimizations are exhausted
+  const isExhausted = sessionStatus?.isExhausted || false;
 
   // Format last action time
   const formatLastAction = (timestamp: string | null) => {
@@ -126,13 +170,54 @@ export function ActionRequired() {
                 )}
               </div>
             </div>
+          ) : isExhausted ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <div className="flex-1">
+                  <p className="font-medium text-amber-600 dark:text-amber-400">Optimizations Exhausted</p>
+                  <p className="text-sm text-muted-foreground">
+                    All available optimizations have been executed for this session.
+                    Reset to start a new optimization cycle.
+                  </p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-1 border-amber-500 text-amber-600 hover:bg-amber-500/10"
+                  onClick={() => setShowResetDialog(true)}
+                  data-testid="reset-session-button"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset Session
+                </Button>
+              </div>
+              {sessionStatus && (
+                <div className="text-xs text-muted-foreground">
+                  Session optimized {sessionStatus.resourcesOptimizedInSession} of {sessionStatus.totalOptimizableResources} resources
+                  • Session savings: {formatCurrencyCompact(sessionStatus.sessionRealizedSavings)}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10 border border-green-500/30">
               <CheckCircle2 className="w-5 h-5 text-green-500" />
-              <div>
+              <div className="flex-1">
                 <p className="font-medium text-green-600 dark:text-green-400">All caught up!</p>
                 <p className="text-sm text-muted-foreground">No recommendations pending approval</p>
               </div>
+              {sessionStatus && sessionStatus.resourcesOptimizedInSession > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="gap-1"
+                  onClick={() => setShowResetDialog(true)}
+                  data-testid="reset-session-small-button"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
@@ -154,11 +239,13 @@ export function ActionRequired() {
             </div>
 
             <div>
-              <p className="text-sm text-muted-foreground">Realized Savings</p>
+              <p className="text-sm text-muted-foreground">Session Savings</p>
               <p className="text-2xl font-bold text-green-500">
-                {formatCurrencyCompact(metrics?.realizedSavingsYTD || 0)}
+                {formatCurrencyCompact(sessionStatus?.sessionRealizedSavings || 0)}
               </p>
-              <p className="text-xs text-muted-foreground">Year to date</p>
+              <p className="text-xs text-muted-foreground">
+                {sessionStatus?.resourcesOptimizedInSession || 0} optimizations this session
+              </p>
             </div>
 
             <div className="pt-3 border-t border-border">
@@ -183,6 +270,49 @@ export function ActionRequired() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Reset Session Confirmation Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Optimization Session?</DialogTitle>
+            <DialogDescription className="space-y-2 pt-2">
+              <p>This will start a fresh optimization cycle:</p>
+              <ul className="list-disc list-inside text-sm space-y-1 pl-2">
+                <li>All executed optimizations will be restored to pending</li>
+                <li>Session savings will reset to $0</li>
+                <li>Monthly AWS spend is <strong>not affected</strong></li>
+              </ul>
+              <p className="pt-2 text-amber-600 dark:text-amber-400">
+                This allows you to run through the optimization cycle again.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowResetDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => resetSession.mutate()}
+              disabled={resetSession.isPending}
+              className="gap-2"
+              data-testid="confirm-reset-button"
+            >
+              {resetSession.isPending ? (
+                <>Resetting...</>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4" />
+                  Reset Session
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
