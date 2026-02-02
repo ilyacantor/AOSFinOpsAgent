@@ -554,6 +554,13 @@ export class SchedulerService {
           continue;
         }
         
+        // FUNDAMENTAL VALIDATION: Skip resources with no cost data
+        const resourceMonthlyCost = resource.monthlyCost || 0;
+        if (resourceMonthlyCost <= 0) {
+          console.warn(`Skipping resource ${resource.resourceId}: no valid cost data`);
+          continue;
+        }
+        
         // Generate synthetic recommendation
         const recType = ['rightsizing', 'scheduling', 'storage-tiering'][Math.floor(Math.random() * 3)] as any;
         
@@ -562,8 +569,7 @@ export class SchedulerService {
         const riskLevel = riskRandom < 0.80 ? 'low' : (riskRandom < 0.90 ? 'medium' : 'high');
         const numericRiskLevel = riskLevel === 'low' ? 3 : (riskLevel === 'medium' ? 7 : 9);
         
-        // Calculate savings based on actual resource cost
-        const resourceMonthlyCost = resource.monthlyCost || 100000; // Fallback to $100k if cost missing
+        // Calculate savings based on actual resource cost (no hardcoded fallback)
         let savingsPercentage = 0;
         
         if (recType === 'rightsizing') {

@@ -231,12 +231,22 @@ Generate recommendations now:`;
       const recommendations = JSON.parse(jsonMatch[0]);
       
       // Validate and normalize recommendations
-      return Promise.all(recommendations.map(async (rec: any) => {
+      const validRecommendations = await Promise.all(recommendations.map(async (rec: any) => {
         try {
           // Find the corresponding resource to get its monthly cost
           const resource = resources.find(r => r.resourceId === rec.resourceId);
           const resourceMonthlyCost = resource?.monthlyCost || 0;
-          const projectedMonthlySavings = Math.round(rec.projectedMonthlySavings);
+          
+          // FUNDAMENTAL VALIDATION: Skip if resource has no cost data
+          if (resourceMonthlyCost <= 0) {
+            console.warn(`Skipping recommendation for ${rec.resourceId}: no valid cost data`);
+            return null;
+          }
+          
+          // FUNDAMENTAL VALIDATION: Cap savings at 70% of resource cost (max realistic optimization)
+          const maxAllowedSavings = Math.round(resourceMonthlyCost * 0.70);
+          const rawSavings = Math.round(rec.projectedMonthlySavings || 0);
+          const projectedMonthlySavings = Math.min(rawSavings, maxAllowedSavings);
           
           // Calculate savings percentage
           const savingsPercentage = resourceMonthlyCost > 0 
@@ -288,7 +298,10 @@ Generate recommendations now:`;
           console.error(`Failed to parse recommendation for ${rec.resourceId}, skipping:`, error);
           return null;
         }
-      })).then(results => results.filter(r => r !== null));
+      }));
+      
+      // Filter out null values (skipped recommendations)
+      return validRecommendations.filter(r => r !== null);
     } catch (error) {
       console.error("Error parsing AI recommendations:", error);
       console.error("AI Response:", aiResponse);
