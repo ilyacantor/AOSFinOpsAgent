@@ -587,7 +587,8 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
-    // Get total realized savings from approved recommendations
+    // Get total realized savings from executed recommendations
+    // Note: recommendations go from 'pending' directly to 'executed', not through 'approved'
     const [realizedSavingsResult] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
@@ -596,7 +597,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(recommendations.tenantId, tenantId),
-          eq(recommendations.status, 'approved')
+          eq(recommendations.status, 'executed')
         )
       );
 
