@@ -190,8 +190,8 @@ export async function handleOptimizationExecutionTransaction(
 }> {
   return await executeInTransaction(
     async ({ tx }) => {
-      const { recommendations, optimizationHistory } = await import('@shared/schema');
-      const { eq } = await import('drizzle-orm');
+      const { recommendations, optimizationHistory, optimizationSessions } = await import('@shared/schema');
+      const { eq, and, desc, sql } = await import('drizzle-orm');
 
       const [updatedRecommendation] = await tx
         .update(recommendations)
@@ -206,6 +206,21 @@ export async function handleOptimizationExecutionTransaction(
         throw new Error(`Recommendation ${data.recommendationId} not found`);
       }
 
+      // Get current session for this tenant
+      const [currentSession] = await tx
+        .select()
+        .from(optimizationSessions)
+        .where(
+          and(
+            eq(optimizationSessions.tenantId, data.tenantId),
+            eq(optimizationSessions.isActive, true)
+          )
+        )
+        .orderBy(desc(optimizationSessions.createdAt))
+        .limit(1);
+
+      const sessionId = currentSession?.id || null;
+
       const [historyRecord] = await tx
         .insert(optimizationHistory)
         .values({
@@ -218,8 +233,20 @@ export async function handleOptimizationExecutionTransaction(
           actualSavings: data.actualSavings || null,
           status: data.status,
           errorMessage: data.errorMessage || null,
+          sessionId: sessionId,
         })
         .returning();
+
+      // Update session tracking for successful optimizations
+      if (currentSession && data.status === 'success' && data.actualSavings) {
+        await tx
+          .update(optimizationSessions)
+          .set({
+            resourcesOptimized: sql`${optimizationSessions.resourcesOptimized} + 1`,
+            totalSavingsRealized: sql`${optimizationSessions.totalSavingsRealized} + ${data.actualSavings}`
+          })
+          .where(eq(optimizationSessions.id, currentSession.id));
+      }
 
       return {
         recommendation: updatedRecommendation,

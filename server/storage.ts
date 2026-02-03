@@ -603,17 +603,21 @@ export class DatabaseStorage implements IStorage {
       );
 
     // Get total identified savings from active recommendations
+    // Use DISTINCT ON to count only the most recent pending recommendation per resource
+    // This prevents over-counting when multiple historical recommendations exist for same resource
     const [savingsResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)::numeric`
+        total: sql<number>`COALESCE(
+          (SELECT SUM(projected_monthly_savings) FROM (
+            SELECT DISTINCT ON (resource_id) projected_monthly_savings
+            FROM ${recommendations}
+            WHERE tenant_id = ${tenantId} AND status = 'pending'
+            ORDER BY resource_id, created_at DESC
+          ) AS latest_pending),
+          0
+        )::numeric`
       })
-      .from(recommendations)
-      .where(
-        and(
-          eq(recommendations.tenantId, tenantId),
-          eq(recommendations.status, 'pending')
-        )
-      );
+      .from(sql`(SELECT 1) AS dummy`);
 
     // Get total realized savings from executed recommendations
     // Use DISTINCT ON to count only the most recent optimization per resource
@@ -988,16 +992,42 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSession(tenantId: string): Promise<OptimizationSession> {
-    // First deactivate any existing active sessions
-    await db
-      .update(optimizationSessions)
-      .set({ isActive: false, endedAt: new Date() })
-      .where(
-        and(
-          eq(optimizationSessions.tenantId, tenantId),
-          eq(optimizationSessions.isActive, true)
-        )
-      );
+    // First get any existing active session to cleanup its recommendations
+    const existingSession = await this.getCurrentSession(tenantId);
+    
+    if (existingSession) {
+      // Reset recommendations that were executed in the existing session back to pending
+      // This ensures a fresh start for the new session
+      await db
+        .update(recommendations)
+        .set({ status: 'pending', updatedAt: new Date() })
+        .where(
+          sql`${recommendations.id} IN (
+            SELECT recommendation_id FROM ${optimizationHistory}
+            WHERE session_id = ${existingSession.id}
+          )`
+        );
+
+      // Deactivate the existing session
+      await db
+        .update(optimizationSessions)
+        .set({ isActive: false, endedAt: new Date() })
+        .where(eq(optimizationSessions.id, existingSession.id));
+    }
+
+    // Cleanup duplicate pending recommendations (keep only most recent per resource)
+    // This prevents accumulation of duplicates from previous resets
+    await db.execute(sql`
+      DELETE FROM ${recommendations} 
+      WHERE id NOT IN (
+        SELECT DISTINCT ON (resource_id) id
+        FROM ${recommendations}
+        WHERE tenant_id = ${tenantId} AND status = 'pending'
+        ORDER BY resource_id, created_at DESC
+      )
+      AND tenant_id = ${tenantId}
+      AND status = 'pending'
+    `);
 
     // Create new session
     const [session] = await db
@@ -1017,22 +1047,23 @@ export class DatabaseStorage implements IStorage {
     // End current session if exists
     const currentSession = await this.getCurrentSession(tenantId);
     if (currentSession) {
+      // Only reset recommendations that were executed in the CURRENT session
+      // This prevents restoring all historical recommendations and creating duplicates
+      await db
+        .update(recommendations)
+        .set({ status: 'pending', updatedAt: new Date() })
+        .where(
+          sql`${recommendations.id} IN (
+            SELECT recommendation_id FROM ${optimizationHistory}
+            WHERE session_id = ${currentSession.id}
+          )`
+        );
+
       await db
         .update(optimizationSessions)
         .set({ isActive: false, endedAt: new Date() })
         .where(eq(optimizationSessions.id, currentSession.id));
     }
-
-    // Reset all executed recommendations back to pending for new session cycle
-    await db
-      .update(recommendations)
-      .set({ status: 'pending', updatedAt: new Date() })
-      .where(
-        and(
-          eq(recommendations.tenantId, tenantId),
-          eq(recommendations.status, 'executed')
-        )
-      );
 
     // Create fresh session
     return this.createSession(tenantId);
@@ -1054,32 +1085,53 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Get count of pending recommendations (remaining optimizations)
+    // Use DISTINCT ON to count unique resources only (not duplicate recommendations)
     const [pendingResult] = await db
       .select({
-        count: sql<number>`COUNT(*)`,
-        savings: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)`
+        count: sql<number>`COALESCE(
+          (SELECT COUNT(*) FROM (
+            SELECT DISTINCT ON (resource_id) id
+            FROM ${recommendations}
+            WHERE tenant_id = ${tenantId} AND status = 'pending'
+            ORDER BY resource_id, created_at DESC
+          ) AS unique_pending),
+          0
+        )`,
+        savings: sql<number>`COALESCE(
+          (SELECT SUM(projected_monthly_savings) FROM (
+            SELECT DISTINCT ON (resource_id) projected_monthly_savings
+            FROM ${recommendations}
+            WHERE tenant_id = ${tenantId} AND status = 'pending'
+            ORDER BY resource_id, created_at DESC
+          ) AS unique_pending_savings),
+          0
+        )`
       })
-      .from(recommendations)
-      .where(
-        and(
-          eq(recommendations.tenantId, tenantId),
-          eq(recommendations.status, 'pending')
-        )
-      );
+      .from(sql`(SELECT 1) AS dummy`);
 
-    // Get count of executed recommendations (total optimizations available)
+    // Get count of executed recommendations (unique resources)
     const [executedResult] = await db
       .select({
-        count: sql<number>`COUNT(*)`,
-        savings: sql<number>`COALESCE(SUM(${recommendations.projectedMonthlySavings}), 0)`
+        count: sql<number>`COALESCE(
+          (SELECT COUNT(*) FROM (
+            SELECT DISTINCT ON (resource_id) id
+            FROM ${recommendations}
+            WHERE tenant_id = ${tenantId} AND status = 'executed'
+            ORDER BY resource_id, created_at DESC
+          ) AS unique_executed),
+          0
+        )`,
+        savings: sql<number>`COALESCE(
+          (SELECT SUM(projected_monthly_savings) FROM (
+            SELECT DISTINCT ON (resource_id) projected_monthly_savings
+            FROM ${recommendations}
+            WHERE tenant_id = ${tenantId} AND status = 'executed'
+            ORDER BY resource_id, created_at DESC
+          ) AS unique_executed_savings),
+          0
+        )`
       })
-      .from(recommendations)
-      .where(
-        and(
-          eq(recommendations.tenantId, tenantId),
-          eq(recommendations.status, 'executed')
-        )
-      );
+      .from(sql`(SELECT 1) AS dummy`);
 
     const remainingOptimizations = Number(pendingResult.count);
     const executedCount = Number(executedResult.count);
