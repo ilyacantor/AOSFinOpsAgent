@@ -38,11 +38,14 @@ if (isNeon) {
     console.error('[DB] Failed to parse database URL');
   }
   
-  pool = new PgPool({ 
+  pool = new PgPool({
     connectionString: databaseUrl,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 15000,
+    ssl: {
+      rejectUnauthorized: false  // Allow self-signed certs for Supabase pooler
+    }
   });
   
   // Add error handler for pool

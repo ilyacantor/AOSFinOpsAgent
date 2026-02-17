@@ -65,27 +65,95 @@ export function ResourceMonitor() {
   }, {} as Record<string, AwsResource[]>);
 
   const getUtilizationData = (resourceType: string, resources: AwsResource[]) => {
-    // Calculate average utilization for resource type
+    // Calculate average utilization based on resource type - each type has different metrics
     const utilizationValues = resources
       .map(r => r.utilizationMetrics)
       .filter(Boolean)
       .map(metrics => {
-        if (typeof metrics === 'object' && metrics && 'avgCpuUtilization' in metrics) {
-          return Number(metrics.avgCpuUtilization) || 0;
+        if (typeof metrics !== 'object' || !metrics) return 0;
+        const m = metrics as Record<string, unknown>;
+
+        // Different resource types use different utilization metrics
+        switch (resourceType) {
+          case 'EC2':
+          case 'RDS':
+          case 'Redshift':
+            // Compute resources: use CPU utilization
+            return Number(m.avgCpuUtilization ?? m.cpuUtilization ?? 0);
+
+          case 'EBS':
+            // Storage: use IOPS utilization or estimate from read/write ops
+            if (m.iopsUtilization !== undefined) return Number(m.iopsUtilization);
+            // If no IOPS data, estimate based on activity (some activity = some utilization)
+            const readOps = Number(m.readOps ?? 0);
+            const writeOps = Number(m.writeOps ?? 0);
+            return (readOps + writeOps) > 0 ? Math.min(50, (readOps + writeOps) / 1000) : 0;
+
+          case 'EBS_Snapshot':
+            // Snapshots: invert age into "freshness" - newer = higher utilization
+            const ageInDays = Number(m.ageInDays ?? 0);
+            // Snapshots < 30 days = 100%, > 365 days = 0%
+            return Math.max(0, Math.min(100, 100 - (ageInDays / 365) * 100));
+
+          case 'ElasticIP':
+            // EIPs: associated = 100% utilized, unassociated = 0%
+            return m.isAssociated === true ? 100 : 0;
+
+          case 'NATGateway':
+            // NAT: invert idle percentage (100% idle = 0% utilization)
+            const idlePercent = Number(m.idleTimePercent ?? 0);
+            return Math.max(0, 100 - idlePercent);
+
+          case 'LoadBalancer':
+            // LB: estimate from request count and healthy hosts
+            const requests = Number(m.requestCount ?? 0);
+            const healthyHosts = Number(m.healthyHostCount ?? 0);
+            if (healthyHosts === 0) return 0;
+            // Some requests = some utilization
+            return requests > 0 ? Math.min(100, 20 + (requests / 10000) * 80) : 0;
+
+          case 'S3':
+            // S3: use access frequency or lifecycle policy as proxy
+            const accessFreq = String(m.accessFrequency ?? 'unknown').toLowerCase();
+            if (accessFreq === 'frequent') return 80;
+            if (accessFreq === 'infrequent') return 40;
+            if (accessFreq === 'rare' || accessFreq === 'none') return 10;
+            return m.hasLifecyclePolicy ? 60 : 30;
+
+          case 'Lambda':
+            // Lambda: use memory utilization or invocation activity
+            if (m.memoryUtilization !== undefined) return Number(m.memoryUtilization);
+            const invocations = Number(m.invocations ?? 0);
+            return invocations > 0 ? Math.min(100, invocations / 100) : 0;
+
+          default:
+            // Fallback: try common fields
+            return Number(m.avgCpuUtilization ?? m.cpuUtilization ?? m.utilization ?? 0);
         }
-        return 0;
       });
-    
-    const avgUtilization = utilizationValues.length > 0 
-      ? utilizationValues.reduce((sum, val) => sum + val, 0) / utilizationValues.length 
+
+    const avgUtilization = utilizationValues.length > 0
+      ? utilizationValues.reduce((sum, val) => sum + val, 0) / utilizationValues.length
       : 0;
 
     const underUtilizedCount = resources.filter(r => {
       const metrics = r.utilizationMetrics;
-      if (typeof metrics === 'object' && metrics && 'avgCpuUtilization' in metrics) {
-        return Number(metrics.avgCpuUtilization) < 50;
+      if (typeof metrics !== 'object' || !metrics) return false;
+      const m = metrics as Record<string, unknown>;
+
+      // Under-utilized threshold varies by resource type
+      switch (resourceType) {
+        case 'EC2':
+        case 'RDS':
+        case 'Redshift':
+          return Number(m.avgCpuUtilization ?? m.cpuUtilization ?? 0) < 20;
+        case 'ElasticIP':
+          return m.isAssociated === false;
+        case 'Lambda':
+          return Number(m.memoryUtilization ?? 100) < 50 || Number(m.invocations ?? 0) === 0;
+        default:
+          return Number(m.avgCpuUtilization ?? m.cpuUtilization ?? 50) < 50;
       }
-      return false;
     }).length;
 
     return {

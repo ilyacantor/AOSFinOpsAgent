@@ -5,8 +5,9 @@ import { pineconeService } from "./pinecone.js";
 import { configService } from './config.js';
 
 export class GeminiAIService {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private genAI: GoogleGenerativeAI | null = null;
+  private model: any = null;
+  private isConfigured: boolean = false;
   private contextCache: {
     data: any;
     timestamp: number;
@@ -16,15 +17,26 @@ export class GeminiAIService {
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not configured");
+      console.warn("[GeminiAI] GEMINI_API_KEY not configured - AI analysis features disabled");
+      this.isConfigured = false;
+      return;
     }
-    
+
     this.genAI = new GoogleGenerativeAI(apiKey);
     // Use Gemini 2.0 Flash Experimental for optimal speed
     this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    this.isConfigured = true;
+  }
+
+  public get configured(): boolean {
+    return this.isConfigured;
   }
 
   async analyzeResourcesForOptimization(resources: AwsResource[], aiModeHistoryId?: string, historicalMetrics?: any): Promise<any[]> {
+    if (!this.isConfigured || !this.model) {
+      console.warn("[GeminiAI] AI analysis skipped - service not configured");
+      return [];
+    }
     // RAG: Retrieve historical context for better AI recommendations
     const historicalContext = await this.retrieveHistoricalContext();
     
@@ -310,6 +322,9 @@ Generate recommendations now:`;
   }
 
   async explainRecommendation(recommendation: any, resource: AwsResource): Promise<string> {
+    if (!this.isConfigured || !this.model) {
+      return "AI explanation unavailable - Gemini API not configured.";
+    }
     const prompt = `As an AWS FinOps expert, provide a clear, concise explanation for this optimization recommendation:
 
 RESOURCE:
@@ -343,6 +358,13 @@ Explain in 2-3 sentences why this optimization is recommended and what the busin
     riskFactors: string[];
     mitigationSteps: string[];
   }> {
+    if (!this.isConfigured || !this.model) {
+      return {
+        riskScore: 50,
+        riskFactors: ["AI risk assessment unavailable - Gemini API not configured"],
+        mitigationSteps: ["Review change manually before implementing"]
+      };
+    }
     const prompt = `Assess the risk of implementing this AWS optimization:
 
 RESOURCE: ${resource.resourceType} (${resource.resourceId})

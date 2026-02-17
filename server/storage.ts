@@ -53,7 +53,8 @@ export interface IStorage {
   getRecentRecommendations(limit: number, tenantId: string): Promise<Recommendation[]>;
   getRecommendation(id: string, tenantId: string): Promise<Recommendation | undefined>;
   updateRecommendationStatus(id: string, status: string, tenantId: string): Promise<Recommendation | undefined>;
-  
+  updateRecommendationExecutionMode(id: string, executionMode: string, tenantId: string): Promise<Recommendation | undefined>;
+
   // Optimization History
   createOptimizationHistory(history: InsertOptimizationHistory, tenantId: string): Promise<OptimizationHistory>;
   getOptimizationHistory(tenantId: string, limit?: number): Promise<OptimizationHistory[]>;
@@ -303,6 +304,20 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(recommendations)
       .set({ status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(recommendations.id, id),
+          eq(recommendations.tenantId, tenantId)
+        )
+      )
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateRecommendationExecutionMode(id: string, executionMode: string, tenantId: string): Promise<Recommendation | undefined> {
+    const [updated] = await db
+      .update(recommendations)
+      .set({ executionMode, updatedAt: new Date() })
       .where(
         and(
           eq(recommendations.id, id),

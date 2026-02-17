@@ -11,29 +11,30 @@ export interface VectorMetadata {
 }
 
 export class PineconeService {
-  private pinecone: Pinecone;
+  private pinecone: Pinecone | null = null;
   private indexName: string = 'autonomos-finops-rag';
-  private genAI: GoogleGenerativeAI;
-  private embeddingModel: any;
-  
+  private genAI: GoogleGenerativeAI | null = null;
+  private embeddingModel: any = null;
+  private isConfigured: boolean = false;
+
   constructor() {
     const apiKey = process.env.PINECONE_API_KEY;
-    if (!apiKey) {
-      throw new Error("PINECONE_API_KEY is not configured");
-    }
-    
-    this.pinecone = new Pinecone({ apiKey });
-    
     const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
-      throw new Error("GEMINI_API_KEY is not configured for embeddings");
+
+    if (!apiKey || !geminiKey) {
+      console.warn("[Pinecone] PINECONE_API_KEY or GEMINI_API_KEY not configured - RAG features disabled");
+      this.isConfigured = false;
+      return;
     }
-    
+
+    this.pinecone = new Pinecone({ apiKey });
     this.genAI = new GoogleGenerativeAI(geminiKey);
     this.embeddingModel = this.genAI.getGenerativeModel({ model: "text-embedding-004" });
+    this.isConfigured = true;
   }
 
   async ensureIndex(): Promise<void> {
+    if (!this.isConfigured || !this.pinecone) return;
     try {
       const indexes = await this.pinecone.listIndexes();
       const indexExists = indexes.indexes?.some(idx => idx.name === this.indexName);
@@ -61,6 +62,7 @@ export class PineconeService {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
+    if (!this.isConfigured || !this.embeddingModel) return [];
     try {
       const result = await this.embeddingModel.embedContent(text);
       return result.embedding.values;
@@ -71,6 +73,7 @@ export class PineconeService {
   }
 
   async storeRecommendation(recommendation: any): Promise<void> {
+    if (!this.isConfigured) return;
     try {
       await this.ensureIndex();
       const index = this.pinecone.index(this.indexName);
@@ -99,6 +102,7 @@ export class PineconeService {
   }
 
   async storeOptimizationHistory(history: any): Promise<void> {
+    if (!this.isConfigured) return;
     try {
       await this.ensureIndex();
       const index = this.pinecone.index(this.indexName);
@@ -127,6 +131,7 @@ export class PineconeService {
   }
 
   async retrieveRelevantContext(query: string, topK: number = 10): Promise<VectorMetadata[]> {
+    if (!this.isConfigured) return [];
     try {
       await this.ensureIndex();
       const index = this.pinecone.index(this.indexName);
@@ -147,6 +152,7 @@ export class PineconeService {
   }
 
   async clearIndex(): Promise<void> {
+    if (!this.isConfigured) return;
     try {
       await this.ensureIndex();
       const index = this.pinecone.index(this.indexName);

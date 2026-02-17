@@ -144,7 +144,6 @@ app.use('/api/*', readLimiter);
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     logger.info(`Server listening on port ${port}`, { port });
   });

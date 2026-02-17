@@ -64,10 +64,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Origin validation to prevent CSRF
     const origin = req.headers.origin;
+    const port = process.env.PORT || '5000';
     const allowedOrigins = [
       process.env.REPLIT_DOMAINS?.split(',') || [],
+      `http://localhost:${port}`,
+      `https://localhost:${port}`,
       'http://localhost:5000',
-      'https://localhost:5000'
+      'https://localhost:5000',
+      'http://localhost:3001',
+      'https://localhost:3001'
     ].flat();
     
     if (origin && allowedOrigins.length > 0 && !allowedOrigins.some(allowed => origin.includes(allowed))) {
@@ -1283,22 +1288,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/agent-config/autonomous-mode", ...authenticatedAdmin, auditMiddleware(auditActions.UPDATE, auditResourceTypes.SYSTEM_CONFIG, req => 'autonomous-mode'), async (req, res) => {
     try {
       const { enabled, updatedBy } = req.body;
-      
+
       if (typeof enabled !== 'boolean') {
         return res.status(400).json({ error: "Enabled must be a boolean value" });
       }
-      
+
       const { configService } = await import('./services/config.js');
       await configService.setAutonomousMode(enabled, updatedBy || 'system');
       const agentConfig = await configService.getAgentConfig();
-      
-      // Broadcast configuration change to connected clients in the same tenant
+
+      // Update executionMode on all pending recommendations based on new autonomous mode setting
       const tenantId = req.user?.tenantId || 'default-tenant';
+      const pendingRecommendations = await storage.getRecommendations(tenantId);
+
+      for (const rec of pendingRecommendations) {
+        if (rec.status !== 'pending') continue;
+
+        // Determine if this recommendation qualifies for autonomous execution
+        const qualifiesForAutonomous = enabled &&
+          agentConfig.autoExecuteTypes.includes(rec.type) &&
+          rec.riskLevel <= agentConfig.maxAutonomousRiskLevel &&
+          (rec.projectedMonthlySavings * 12) <= agentConfig.approvalRequiredAboveSavings;
+
+        const newExecutionMode = qualifiesForAutonomous ? 'autonomous' : 'hitl';
+
+        if (rec.executionMode !== newExecutionMode) {
+          await storage.updateRecommendationExecutionMode(rec.id, newExecutionMode, tenantId);
+        }
+      }
+
+      // Broadcast configuration change to connected clients in the same tenant
       broadcastToTenant(tenantId, {
         type: 'agent_config_updated',
         data: { autonomousMode: enabled, updatedBy }
       });
-      
+
       res.json(agentConfig);
     } catch (error) {
       console.error("Error updating autonomous mode:", error);

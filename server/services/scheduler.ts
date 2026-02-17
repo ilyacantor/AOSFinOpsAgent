@@ -510,17 +510,91 @@ export class SchedulerService {
         return;
       }
       
-      // Identify underutilized resources (potential waste)
+      // Identify underutilized resources (potential waste) - type-specific detection
+      // Detection logic follows spec from "FinOps Agent expansion.pdf" page 14 EXACTLY
       const wastefulResources = resources.filter(resource => {
         const metrics = resource.utilizationMetrics as any;
+        const config = resource.currentConfig as any;
         if (!metrics) return false;
-        
-        // Get utilization metrics (default to 0 if missing, treat as wasteful)
-        const cpuUtil = metrics.avgCpuUtilization ?? metrics.cpuUtilization ?? 0;
-        const memUtil = metrics.avgMemoryUtilization ?? metrics.memoryUtilization ?? 0;
-        
-        // Resource is wasteful if CPU < 30% OR Memory < 40%
-        return cpuUtil < 30 || memUtil < 40;
+
+        // Type-specific waste detection per spec (page 14)
+        switch (resource.resourceType) {
+          case 'EC2': {
+            // SPEC: "Oversized instances: CPU < 20% AND memory < 20% over 7 days"
+            // Uses AND logic - BOTH must be low to be considered waste
+            const cpuUtil = metrics.avgCpuUtilization ?? metrics.cpuUtilization ?? 0;
+            const memUtil = metrics.avgMemoryUtilization ?? metrics.memoryUtilization ?? 100;
+            return cpuUtil < 20 && memUtil < 20;
+          }
+
+          case 'RDS': {
+            // SPEC: "Oversized databases: CPUUtilization < 20% avg over 14 days"
+            // CPU only - NO memory check for RDS
+            const cpuUtil = metrics.avgCpuUtilization ?? metrics.cpuUtilization ?? 0;
+            return cpuUtil < 20;
+          }
+
+          case 'Redshift': {
+            // SPEC: "Oversized clusters: CPUUtilization < 20% sustained"
+            // CPU only - NO memory check for Redshift
+            const cpuUtil = metrics.avgCpuUtilization ?? metrics.cpuUtilization ?? 0;
+            return cpuUtil < 20;
+          }
+
+          case 'EBS': {
+            // SPEC: "Unattached volumes: Attachments = []" (primary waste indicator)
+            // Also flag gp2 volumes as migration candidates
+            const isUnattached = config?.state === 'available' || !config?.attachedTo;
+            const isGp2 = config?.volumeType === 'gp2';
+            return isUnattached || isGp2;
+          }
+
+          case 'EBS_Snapshot': {
+            // SPEC: "Old snapshots: age > 90 days" OR "Unattached snapshots: source volume deleted"
+            const isOrphaned = metrics.sourceVolumeExists === false;
+            const ageInDays = metrics.ageInDays ?? 0;
+            return isOrphaned || ageInDays > 90;
+          }
+
+          case 'ElasticIP': {
+            // SPEC: "Unattached Elastic IPs: InstanceId = null" -> $3.65/month each
+            return metrics.isAssociated === false || !config?.associationId;
+          }
+
+          case 'NATGateway': {
+            // SPEC: "Idle NAT Gateways: BytesProcessed < 1GB/day over 7 days"
+            // 1GB = 1,073,741,824 bytes
+            const bytesProcessed = metrics.bytesProcessed ?? 0;
+            return bytesProcessed < 1073741824; // < 1GB/day
+          }
+
+          case 'LoadBalancer': {
+            // SPEC: "Idle Load Balancers: RequestCount = 0 for 7+ days"
+            const requestCount = metrics.requestCount ?? 0;
+            return requestCount === 0;
+          }
+
+          case 'S3': {
+            // SPEC: "No lifecycle policy: Bucket has no lifecycle rules"
+            const hasLifecyclePolicy = config?.hasLifecyclePolicy ?? metrics.hasLifecyclePolicy ?? true;
+            return !hasLifecyclePolicy;
+          }
+
+          case 'Lambda': {
+            // SPEC: "Over-provisioned memory: Max memory used < 50% of allocated"
+            // SPEC: "Unused functions: Invocations = 0 for 30+ days"
+            const memUtil = metrics.memoryUtilization ?? 100;
+            const invocations = metrics.invocations ?? 0;
+            return memUtil < 50 || invocations === 0;
+          }
+
+          default: {
+            // Fallback: use EC2-style detection (conservative)
+            const cpuUtil = metrics.avgCpuUtilization ?? metrics.cpuUtilization ?? 0;
+            const memUtil = metrics.avgMemoryUtilization ?? metrics.memoryUtilization ?? 100;
+            return cpuUtil < 20 && memUtil < 20;
+          }
+        }
       });
       
       if (wastefulResources.length === 0) {
@@ -561,26 +635,75 @@ export class SchedulerService {
           continue;
         }
         
-        // Generate synthetic recommendation
-        const recType = ['rightsizing', 'scheduling', 'storage-tiering'][Math.floor(Math.random() * 3)] as any;
-        
-        // 80% autonomous (low-risk) / 20% HITL (medium+high risk) distribution
-        const riskRandom = Math.random();
-        const riskLevel = riskRandom < 0.80 ? 'low' : (riskRandom < 0.90 ? 'medium' : 'high');
-        const numericRiskLevel = riskLevel === 'low' ? 3 : (riskLevel === 'medium' ? 7 : 9);
-        
-        // Calculate savings based on actual resource cost (no hardcoded fallback)
+        // Generate type-specific recommendation
+        const recType = this.getRecommendationTypeForResource(resource);
+
+        // Assign risk level based on recommendation type (not random!)
+        // Low risk (1-3): Deleting clearly unused resources
+        // Medium-low risk (4-5): Safe optimizations with minimal impact
+        // Medium risk (6): Changes that affect resource configuration
+        // Medium-high risk (7-8): Changes that affect infrastructure
+        // High risk (9-10): Major changes to production resources
+        const riskLevelByType: Record<string, number> = {
+          'delete-unattached': 2,    // EBS volume not attached - very safe
+          'release-eip': 2,          // Elastic IP not associated - very safe, AWS charges for it
+          'delete-orphaned': 3,      // Snapshot source gone - safe to delete
+          'delete-unused': 4,        // Lambda/NAT/LB unused - probably safe
+          'snapshot-cleanup': 4,     // Old snapshots - might be backups
+          'volume-rightsizing': 5,   // Change EBS type - reversible
+          'storage-tiering': 4,      // S3 to Glacier - data still accessible
+          'lambda-rightsizing': 4,   // Memory change - reversible
+          'nat-consolidation': 7,    // Network changes - affects routing
+          'lb-consolidation': 7,     // Traffic changes - affects routing
+          'rightsizing': 6,          // EC2/RDS resize - affects workloads
+          'scheduling': 6,           // Shutdown schedules - affects availability
+        };
+        const numericRiskLevel = riskLevelByType[recType] ?? 5; // Default to medium-low
+        const riskLevel = numericRiskLevel <= 3 ? 'low' : (numericRiskLevel <= 6 ? 'medium' : 'high');
+
+        // Calculate savings based on recommendation type and resource cost
         let savingsPercentage = 0;
-        
-        if (recType === 'rightsizing') {
-          // Rightsizing: 30-60% savings (downsize underutilized resources)
-          savingsPercentage = 0.30 + Math.random() * 0.30; // 30-60%
-        } else if (recType === 'scheduling') {
-          // Scheduling: 50-70% savings (shutdown off-hours)
-          savingsPercentage = 0.50 + Math.random() * 0.20; // 50-70%
-        } else {
-          // Storage-tiering: 20-40% savings (move to cold storage)
-          savingsPercentage = 0.20 + Math.random() * 0.20; // 20-40%
+
+        switch (recType) {
+          case 'delete-unattached':
+          case 'release-eip':
+          case 'delete-orphaned':
+          case 'delete-unused':
+            // Deletion: 100% savings (resource completely removed)
+            savingsPercentage = 1.0;
+            break;
+          case 'snapshot-cleanup':
+            // Snapshot cleanup: 100% savings for the snapshot
+            savingsPercentage = 1.0;
+            break;
+          case 'rightsizing':
+            // Rightsizing: 30-60% savings (downsize underutilized resources)
+            savingsPercentage = 0.30 + Math.random() * 0.30;
+            break;
+          case 'scheduling':
+            // Scheduling: 50-70% savings (shutdown off-hours)
+            savingsPercentage = 0.50 + Math.random() * 0.20;
+            break;
+          case 'storage-tiering':
+            // S3 tiering: 60-80% savings (Glacier is much cheaper)
+            savingsPercentage = 0.60 + Math.random() * 0.20;
+            break;
+          case 'volume-rightsizing':
+            // EBS type change: 20-40% savings (gp3 vs gp2)
+            savingsPercentage = 0.20 + Math.random() * 0.20;
+            break;
+          case 'lambda-rightsizing':
+            // Lambda memory: 30-50% savings
+            savingsPercentage = 0.30 + Math.random() * 0.20;
+            break;
+          case 'nat-consolidation':
+          case 'lb-consolidation':
+            // Consolidation: 40-60% savings
+            savingsPercentage = 0.40 + Math.random() * 0.20;
+            break;
+          default:
+            // Unknown type: 20-40% conservative estimate
+            savingsPercentage = 0.20 + Math.random() * 0.20;
         }
         
         const monthlySavings = Math.round(resourceMonthlyCost * savingsPercentage);
@@ -603,7 +726,7 @@ export class SchedulerService {
           type: recType,
           priority: riskLevel === 'high' ? 'critical' : (riskLevel === 'medium' ? 'high' : 'medium'),
           title: this.generateRecommendationTitle(recType, resource.resourceType),
-          description: this.generateRecommendationDescription(recType, cpuUtil, memUtil, monthlySavings),
+          description: this.generateRecommendationDescription(recType, cpuUtil, memUtil, monthlySavings, resource),
           currentConfig: resource.currentConfig as any,
           recommendedConfig: this.generateRecommendedConfig(recType, resource),
           projectedMonthlySavings: monthlySavings,
@@ -655,6 +778,70 @@ export class SchedulerService {
     }
   }
   
+  // Determine the appropriate recommendation type based on resource type and metrics
+  private getRecommendationTypeForResource(resource: any): string {
+    const metrics = resource.utilizationMetrics as any;
+    const config = resource.currentConfig as any;
+
+    switch (resource.resourceType) {
+      case 'EBS':
+        if (config?.state === 'available' || !config?.attachedTo) {
+          return 'delete-unattached';
+        }
+        return 'volume-rightsizing';
+
+      case 'EBS_Snapshot':
+        if (metrics?.sourceVolumeExists === false) {
+          return 'delete-orphaned';
+        }
+        return 'snapshot-cleanup';
+
+      case 'ElasticIP':
+        return 'release-eip';
+
+      case 'NATGateway':
+        if (metrics?.idleTimePercent > 90) {
+          return 'delete-unused';
+        }
+        return 'nat-consolidation';
+
+      case 'LoadBalancer':
+        if (metrics?.healthyHostCount === 0) {
+          return 'delete-unused';
+        }
+        return 'lb-consolidation';
+
+      case 'S3':
+        return 'storage-tiering';
+
+      case 'Lambda':
+        if (metrics?.invocations < 100) {
+          return 'delete-unused';
+        }
+        return 'lambda-rightsizing';
+
+      case 'EC2':
+        // EC2: Low CPU AND memory = oversized instance → rightsizing
+        // Spec page 14: "Oversized instances: CPU < 20% AND memory < 20%"
+        return 'rightsizing';
+
+      case 'RDS':
+        // RDS: Low CPU = oversized database → rightsizing
+        // Spec page 14: "Oversized databases: CPUUtilization < 20%"
+        return 'rightsizing';
+
+      case 'Redshift':
+        // Redshift: Low CPU = oversized cluster → rightsizing or scheduling
+        // Spec page 14: "Oversized clusters: CPUUtilization < 20%"
+        // Scheduling makes sense for dev clusters, rightsizing for prod
+        return Math.random() < 0.7 ? 'rightsizing' : 'scheduling';
+
+      default:
+        // Unknown resource types
+        return 'rightsizing';
+    }
+  }
+
   private generateRecommendationTitle(type: string, resourceType: string): string {
     const titles: Record<string, string[]> = {
       rightsizing: [
@@ -671,45 +858,221 @@ export class SchedulerService {
         `Move ${resourceType} Data to Cold Storage`,
         `Implement Storage Tiering for ${resourceType}`,
         `Archive Unused ${resourceType} Data`
+      ],
+      // New resource type recommendations
+      'delete-unattached': [
+        `Delete Unattached EBS Volume`,
+        `Remove Orphaned EBS Volume`,
+        `Clean Up Unused EBS Storage`
+      ],
+      'volume-rightsizing': [
+        `Reduce Over-Provisioned EBS IOPS`,
+        `Downgrade EBS Volume Type`,
+        `Right-Size EBS Volume Configuration`
+      ],
+      'delete-orphaned': [
+        `Delete Orphaned EBS Snapshot`,
+        `Remove Snapshot with Deleted Source Volume`,
+        `Clean Up Stale EBS Snapshot`
+      ],
+      'snapshot-cleanup': [
+        `Archive Old EBS Snapshot`,
+        `Implement Snapshot Lifecycle Policy`,
+        `Clean Up Aged EBS Snapshots`
+      ],
+      'release-eip': [
+        `Release Unassociated Elastic IP`,
+        `Remove Idle Elastic IP Address`,
+        `Clean Up Unused Elastic IP`
+      ],
+      'delete-unused': [
+        `Delete Unused ${resourceType}`,
+        `Remove Idle ${resourceType}`,
+        `Terminate Inactive ${resourceType}`
+      ],
+      'nat-consolidation': [
+        `Consolidate NAT Gateway Traffic`,
+        `Optimize NAT Gateway Usage`,
+        `Reduce NAT Gateway Footprint`
+      ],
+      'lb-consolidation': [
+        `Consolidate Load Balancer Resources`,
+        `Optimize Load Balancer Configuration`,
+        `Remove Underutilized Load Balancer`
+      ],
+      'lambda-rightsizing': [
+        `Right-Size Lambda Memory Allocation`,
+        `Reduce Over-Provisioned Lambda Memory`,
+        `Optimize Lambda Configuration`
       ]
     };
-    
+
     const options = titles[type] || [`Optimize ${resourceType} Configuration`];
     return options[Math.floor(Math.random() * options.length)];
   }
   
-  private generateRecommendationDescription(type: string, cpuUtil: number, memUtil: number, monthlySavings: number): string {
-    const savingsFormatted = (monthlySavings / 1000).toFixed(0); // Convert to K notation
-    if (type === 'rightsizing') {
-      return `Resource running at ${cpuUtil.toFixed(1)}% CPU and ${memUtil.toFixed(1)}% memory utilization. Recommend downsizing to reduce costs by approximately $${savingsFormatted}K/month.`;
-    } else if (type === 'scheduling') {
-      return `Resource usage patterns suggest potential for scheduled shutdown during off-peak hours. Estimated savings: $${savingsFormatted}K/month.`;
-    } else {
-      return `Storage analysis indicates underutilized capacity. Implement tiering to cold storage for $${savingsFormatted}K/month savings.`;
+  private generateRecommendationDescription(type: string, cpuUtil: number, memUtil: number, monthlySavings: number, resource?: any): string {
+    // Format savings for human readability: under $1K shows exact amount, over $1K shows K notation
+    const savingsFormatted = monthlySavings < 1000
+      ? `$${monthlySavings.toFixed(0)}`
+      : `$${(monthlySavings / 1000).toFixed(0)}K`;
+    const metrics = resource?.utilizationMetrics as any;
+    const config = resource?.currentConfig as any;
+
+    switch (type) {
+      case 'rightsizing':
+        return `Resource running at ${cpuUtil.toFixed(1)}% CPU and ${memUtil.toFixed(1)}% memory utilization. Recommend downsizing to reduce costs by approximately ${savingsFormatted}/month.`;
+
+      case 'scheduling':
+        return `Resource usage patterns suggest potential for scheduled shutdown during off-peak hours. Estimated savings: ${savingsFormatted}/month.`;
+
+      case 'storage-tiering':
+        if (resource?.resourceType === 'S3') {
+          const avgAge = metrics?.avgObjectAgeDays ?? 0;
+          const accessFreq = metrics?.accessFrequency ?? 'unknown';
+          return `S3 bucket contains objects averaging ${avgAge} days old with ${accessFreq} access patterns. Moving to Glacier could save ${savingsFormatted}/month.`;
+        }
+        return `Storage analysis indicates underutilized capacity. Implement tiering to cold storage for ${savingsFormatted}/month savings.`;
+
+      case 'delete-unattached':
+        return `EBS volume is unattached and incurring storage costs. Delete this volume to save ${savingsFormatted}/month.`;
+
+      case 'volume-rightsizing':
+        const iopsUtil = metrics?.iopsUtilization ?? 0;
+        return `EBS volume IOPS utilization at ${iopsUtil.toFixed(1)}%. Consider downgrading to a lower tier (gp3 or gp2) to save ${savingsFormatted}/month.`;
+
+      case 'delete-orphaned':
+        const ageInDays = metrics?.ageInDays ?? 0;
+        return `EBS snapshot is ${ageInDays} days old and its source volume no longer exists. Delete this orphaned snapshot to save ${savingsFormatted}/month.`;
+
+      case 'snapshot-cleanup':
+        const snapshotAge = metrics?.ageInDays ?? 0;
+        return `EBS snapshot is ${snapshotAge} days old. Implement a lifecycle policy or delete to save ${savingsFormatted}/month.`;
+
+      case 'release-eip':
+        const idleDays = metrics?.idleDays ?? 0;
+        return `Elastic IP has been unassociated for ${idleDays} days. AWS charges for unassociated EIPs. Release to save ${savingsFormatted}/month.`;
+
+      case 'delete-unused':
+        if (resource?.resourceType === 'NATGateway') {
+          const idlePercent = metrics?.idleTimePercent ?? 0;
+          return `NAT Gateway is ${idlePercent.toFixed(0)}% idle with minimal traffic. Delete to save ${savingsFormatted}/month.`;
+        } else if (resource?.resourceType === 'LoadBalancer') {
+          return `Load Balancer has no healthy targets and minimal traffic. Delete to save ${savingsFormatted}/month.`;
+        } else if (resource?.resourceType === 'Lambda') {
+          const invocations = metrics?.invocations ?? 0;
+          return `Lambda function has only ${invocations} invocations. Consider deleting if no longer needed to save ${savingsFormatted}/month.`;
+        }
+        return `Resource is unused. Delete to save ${savingsFormatted}/month.`;
+
+      case 'nat-consolidation':
+        return `NAT Gateway has low utilization. Consider consolidating traffic through fewer gateways to save ${savingsFormatted}/month.`;
+
+      case 'lb-consolidation':
+        const requestCount = metrics?.requestCount ?? 0;
+        return `Load Balancer handles only ${requestCount} requests. Consider consolidating with other load balancers to save ${savingsFormatted}/month.`;
+
+      case 'lambda-rightsizing':
+        const lambdaMemUtil = metrics?.memoryUtilization ?? 0;
+        const allocatedMB = config?.memorySize ?? 0;
+        const usedMB = metrics?.maxMemoryUsedMB ?? 0;
+        return `Lambda function using ${usedMB}MB of ${allocatedMB}MB allocated (${lambdaMemUtil.toFixed(1)}% utilization). Reduce memory allocation to save ${savingsFormatted}/month.`;
+
+      default:
+        return `Resource analysis indicates optimization opportunity. Estimated savings: ${savingsFormatted}/month.`;
     }
   }
   
   private generateRecommendedConfig(type: string, resource: any): any {
     const current = resource.currentConfig || {};
-    
-    if (type === 'rightsizing') {
-      return {
-        ...current,
-        instanceSize: 'reduced',
-        recommendation: 'Downsize by 1-2 tiers'
-      };
-    } else if (type === 'scheduling') {
-      return {
-        ...current,
-        schedule: 'Mon-Fri 8AM-6PM',
-        autoShutdown: true
-      };
-    } else {
-      return {
-        ...current,
-        storageClass: 'GLACIER',
-        tieringEnabled: true
-      };
+    const metrics = resource.utilizationMetrics as any;
+
+    switch (type) {
+      case 'rightsizing':
+        return {
+          ...current,
+          instanceSize: 'reduced',
+          recommendation: 'Downsize by 1-2 tiers'
+        };
+
+      case 'scheduling':
+        return {
+          ...current,
+          schedule: 'Mon-Fri 8AM-6PM',
+          autoShutdown: true
+        };
+
+      case 'storage-tiering':
+        return {
+          ...current,
+          storageClass: 'GLACIER',
+          tieringEnabled: true,
+          lifecycleRules: true
+        };
+
+      case 'delete-unattached':
+      case 'delete-orphaned':
+      case 'delete-unused':
+        return {
+          action: 'DELETE',
+          previousState: current,
+          reason: 'Resource is unused/orphaned'
+        };
+
+      case 'volume-rightsizing':
+        return {
+          ...current,
+          volumeType: 'gp3',
+          iops: Math.min(3000, current.iops || 3000), // Reduce to base gp3
+          recommendation: 'Downgrade to gp3 with base IOPS'
+        };
+
+      case 'snapshot-cleanup':
+        return {
+          action: 'DELETE_OR_ARCHIVE',
+          lifecyclePolicy: {
+            deleteAfterDays: 90,
+            archiveAfterDays: 30
+          }
+        };
+
+      case 'release-eip':
+        return {
+          action: 'RELEASE',
+          previousState: current,
+          reason: 'Elastic IP is unassociated'
+        };
+
+      case 'nat-consolidation':
+        return {
+          ...current,
+          recommendation: 'Consolidate with other NAT Gateways or use VPC endpoints',
+          alternativeOptions: ['VPC Endpoints', 'NAT Instance']
+        };
+
+      case 'lb-consolidation':
+        return {
+          ...current,
+          recommendation: 'Consolidate targets or delete if unused',
+          alternativeOptions: ['Merge with another ALB', 'Delete']
+        };
+
+      case 'lambda-rightsizing':
+        const currentMemory = current.memorySize || 1024;
+        const usedMemory = metrics?.maxMemoryUsedMB || currentMemory;
+        // Recommend 1.5x the used memory with a minimum of 128MB
+        const recommendedMemory = Math.max(128, Math.ceil(usedMemory * 1.5 / 64) * 64);
+        return {
+          ...current,
+          memorySize: recommendedMemory,
+          recommendation: `Reduce from ${currentMemory}MB to ${recommendedMemory}MB`
+        };
+
+      default:
+        return {
+          ...current,
+          optimized: true
+        };
     }
   }
   

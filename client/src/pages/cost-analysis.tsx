@@ -80,8 +80,10 @@ export default function CostAnalysis() {
   }, {} as Record<string, number>) || {};
 
   const sortedServices = Object.entries(serviceBreakdown)
-    .sort(([,a], [,b]) => b - a)
-    .slice(0, 5); // Top 5 services
+    .sort(([,a], [,b]) => b - a); // Show all services, sorted by cost
+
+  // Calculate total from actual service costs for accurate percentages
+  const totalServiceCost = Object.values(serviceBreakdown).reduce((sum, cost) => sum + cost, 0);
 
   const isLoading = metricsLoading || trendsLoading || resourcesLoading || summaryLoading;
   const error = metricsError || trendsError || resourcesError;
@@ -277,7 +279,7 @@ export default function CostAnalysis() {
                           <div className="text-right">
                             <div className="text-sm font-bold">{formatCurrencyK(cost)}/mo</div>
                             <div className="text-xs text-muted-foreground">
-                              {((cost / (metrics?.monthlySpend || 1)) * 100).toFixed(1)}%
+                              {((cost / (totalServiceCost || 1)) * 100).toFixed(1)}%
                             </div>
                           </div>
                         </div>
