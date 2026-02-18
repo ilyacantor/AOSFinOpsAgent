@@ -29,7 +29,7 @@ echo ""
 
 echo "5. INTEGRATION TEST (verifies against actual database)"
 echo "----------------------------------------"
-DATABASE_URL='postgres://postgres.tpevphqubhugurdebthl:vYOu4r6YgiL7D8o4@aws-1-us-west-1.pooler.supabase.com:6543/postgres' npx tsx scripts/test-integration.ts
+DATABASE_URL="${DATABASE_URL:?Set DATABASE_URL env variable before running integration tests}" npx tsx scripts/test-integration.ts
 echo ""
 
 echo "========================================================================"
